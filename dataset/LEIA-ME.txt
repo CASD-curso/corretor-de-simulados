@@ -1,0 +1,16 @@
+Dataset rotulado para treino da CNNBin (opcional).
+
+Estrutura esperada:
+  dataset_bolhas_bruto/
+  ├── vazia/
+  │   └── *.png
+  └── preenchida/
+      └── *.png
+
+Os nomes das subpastas definem as classes (ImageFolder).
+
+Para treinar:
+  python src/train/treinar.py
+
+Para avaliar no conjunto de teste:
+  python src/infer/avaliar_teste.py
