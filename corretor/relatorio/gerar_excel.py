@@ -5,10 +5,17 @@ from pathlib import Path
 from corretor.config import OUTPUTS_DIR, LOCAL_DIR, ESTRUTURA_MATERIAS, NUM_QUESTOES, NOME_SIMULADO, SIMULADO_ATIVO
 from corretor.inferencia.inferir_completo import gerar_planilha_unificada
 
-def gerar_excel_final():
-    print("Obtendo dados de leitura das imagens...")
-    dados_brutos = gerar_planilha_unificada()
-    
+def gerar_excel_final(dados_brutos=None):
+    """
+    dados_brutos: quando informado (lista de dicts), é o resultado de
+    aplicar_revisao() — a leitura já corrigida pelo operador (item 5).
+    Quando None, calcula direto da leitura automática do modelo, sem passar
+    por nenhuma revisão — é o caminho de quem não teve nada pra corrigir.
+    """
+    if dados_brutos is None:
+        print("Obtendo dados de leitura das imagens...")
+        dados_brutos, _, _, _ = gerar_planilha_unificada()
+
     if not dados_brutos:
         print("Nenhum dado processado para gerar o Excel.")
         return
@@ -128,19 +135,33 @@ def gerar_excel_final():
         df_relatorio[c] = df_relatorio[c].apply(lambda x: f"{x:.1%}")
     df_relatorio['Ponto Bisserial'] = df_relatorio['Ponto Bisserial'].round(3)
     
-    # 5. Exportação
+    # 5. Aba de auditoria (item 4 do plano): registro permanente das folhas
+    # descartadas no alinhamento e das bolhas que falharam ao abrir. Antes
+    # essas duas falhas só apareciam como print no console e se perdiam.
+    colunas_auditoria = ["Simulado", "Inscricao", "Alinhamento_OK", "Motivo_Alinhamento", "Bolhas_Ilegiveis"]
+    colunas_auditoria_existentes = [c for c in colunas_auditoria if c in df_bruto.columns]
+    df_falhas = df_bruto[colunas_auditoria_existentes].copy()
+    if "Alinhamento_OK" in df_falhas.columns and "Bolhas_Ilegiveis" in df_falhas.columns:
+        df_falhas = df_falhas[
+            (df_falhas["Alinhamento_OK"] == "Não") | (df_falhas["Bolhas_Ilegiveis"] != "")
+        ]
+
+    # 6. Exportação
     if 'Caminho_Imagem' in df_bruto.columns:
         df_bruto['Link_Imagem'] = df_bruto['Caminho_Imagem'].apply(lambda x: f'=HYPERLINK("{x}", "Ver Scan")')
         df_bruto = df_bruto.drop(columns=['Caminho_Imagem'])
-        
+
     nome_arquivo = f"{NOME_SIMULADO}.xlsx"
     caminho_saida = OUTPUTS_DIR / nome_arquivo
-    
+
     with pd.ExcelWriter(caminho_saida, engine='xlsxwriter') as writer:
         df_bruto.to_excel(writer, sheet_name='Resultados Brutos', index=False)
         df_estatisticas.to_excel(writer, sheet_name='Estatísticas por Aluno', index=False)
         df_relatorio.to_excel(writer, sheet_name='Relatório Sintético dos Testes', index=False)
-        
+        df_falhas.to_excel(writer, sheet_name='Falhas de Leitura', index=False)
+
+    if len(df_falhas) > 0:
+        print(f"AVISO: {len(df_falhas)} simulado(s) com falha de leitura — ver aba 'Falhas de Leitura'.")
     print(f"✓ Excel gerado com sucesso: {caminho_saida}")
 
 if __name__ == "__main__":

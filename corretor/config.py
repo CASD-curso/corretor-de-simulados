@@ -35,6 +35,17 @@ GRAFICO_TREINAMENTO_PATH = OUTPUTS_DIR / "grafico_treinamento.png"
 EXEMPLO_PREDICOES_PATH = OUTPUTS_DIR / "exemplo_predicoes.png"
 RESULTADOS_CSV_PATH = OUTPUTS_DIR / "resultados_simulado.csv"
 INSCRICOES_CSV_PATH = OUTPUTS_DIR / "inscricoes.csv"
+# Item 4 do plano de alterações: registro das folhas descartadas na etapa de
+# alinhamento (menos de 3 cantos encontrados, arquivo corrompido etc.). A
+# extração grava aqui; gerar_planilha_unificada lê daqui para que a folha
+# apareça no resultado final em vez de simplesmente desaparecer.
+FALHAS_ALINHAMENTO_PATH = OUTPUTS_DIR / "falhas_alinhamento.json"
+
+# Item 5 do plano de alterações: checkpoint de revisão manual, entre a
+# inferência e o cálculo de nota. gerar_planilha_revisao() escreve aqui;
+# aplicar_revisao() lê a versão que o operador baixou, revisou e subiu de
+# volta.
+PLANILHA_REVISAO_PATH = OUTPUTS_DIR / "planilha_revisao.xlsx"
 
 # =====================================================================
 # DICIONÁRIO DINÂMICO DE SIMULADOS

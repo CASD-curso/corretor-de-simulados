@@ -5,8 +5,14 @@ from corretor.config import CONFIG_SIMULADOS, SIMULADO_ATIVO
 
 def alinhar_gabarito(caminho_imagem):
     """
-    Lê a imagem de forma segura e utiliza os parâmetros de alinhamento 
+    Lê a imagem de forma segura e utiliza os parâmetros de alinhamento
     específicos do SIMULADO_ATIVO definido no config.
+
+    Retorna sempre uma tupla (imagem_alinhada, motivo_falha):
+      - sucesso: (array numpy, None)
+      - falha:   (None, string curta explicando o motivo)
+    O motivo existe para que quem chama consiga registrar a falha em vez de
+    só ver o print no console (item 4 do plano de alterações).
     """
     # Pega as configurações do simulado ativo atual (CASDINHO ou SEMI)
     config_atual = CONFIG_SIMULADOS.get(SIMULADO_ATIVO, CONFIG_SIMULADOS["CASDINHO"])
@@ -21,14 +27,16 @@ def alinhar_gabarito(caminho_imagem):
     img_array = np.fromfile(caminho_str, np.uint8)
 
     if img_array.size == 0:
+        motivo = "arquivo_vazio_ou_caminho_invalido"
         print(f"ERRO: Arquivo vazio ou caminho inválido: {caminho_str}")
-        return None
+        return None, motivo
 
     imagem = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
 
     if imagem is None:
+        motivo = "falha_ao_decodificar_imagem"
         print(f"ERRO: cv2.imdecode falhou ao decodificar a imagem: {caminho_str}")
-        return None
+        return None, motivo
 
     imagem_cinza = cv2.cvtColor(imagem, cv2.COLOR_BGR2GRAY)
     imagem_blur = cv2.GaussianBlur(imagem_cinza, (5, 5), 0)
@@ -87,8 +95,9 @@ def alinhar_gabarito(caminho_imagem):
         marcadores.append(tuple(p_faltante.astype(int)))
         print(f" -> [{SIMULADO_ATIVO}] 4º canto reconstruído matematicamente com sucesso!")
     else:
+        motivo = f"apenas_{len(marcadores)}_cantos_encontrados_minimo_3"
         print(f"AVISO: Apenas {len(marcadores)} cantos encontrados em {caminho_str} (Mínimo requerido: 3).")
-        return None
+        return None, motivo
 
     pontos_origem = np.array(marcadores, dtype="float32")
     somas = pontos_origem.sum(axis=1)
@@ -108,6 +117,7 @@ def alinhar_gabarito(caminho_imagem):
     ], dtype="float32")
 
     matriz_perspectiva = cv2.getPerspectiveTransform(pontos_ordenados, pontos_destino)
-    return cv2.warpPerspective(
+    imagem_alinhada = cv2.warpPerspective(
         imagem_cinza, matriz_perspectiva, (LARGURA_ALINHADA, ALTURA_ALINHADA)
     )
+    return imagem_alinhada, None

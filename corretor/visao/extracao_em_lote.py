@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 
@@ -8,6 +9,7 @@ import numpy as np
 from corretor.config import (
     ADAPTIVE_THRESH_BLOCK,
     ADAPTIVE_THRESH_C,
+    FALHAS_ALINHAMENTO_PATH,
     GRADE_INSCRICAO,
     GRADE_RESPOSTAS,
     NUM_QUESTOES,  # Importado para uso dinâmico nos logs
@@ -142,13 +144,20 @@ def processar_simulados(
         
     print(f"Iniciando extração de {len(arquivos)} simulados ({', '.join(tipos)})...")
 
+    # Item 4 do plano: antes, uma folha sem alinhamento só gerava um print e
+    # desaparecia do resultado. Agora cada falha fica registrada aqui, com o
+    # motivo, e é persistida em disco para gerar_planilha_unificada conseguir
+    # ler mesmo numa célula/processo separado do notebook.
+    falhas_alinhamento = {}
+
     for index_arquivo, caminho_imagem in enumerate(arquivos):
         nome_base = os.path.basename(caminho_imagem).split(".")[0]
         print(f"[{index_arquivo + 1}/{len(arquivos)}] Processando: {nome_base}")
 
-        imagem_alinhada_cinza = alinhar_gabarito(caminho_imagem)
+        imagem_alinhada_cinza, motivo_falha = alinhar_gabarito(caminho_imagem)
         if imagem_alinhada_cinza is None:
-            print("  -> ERRO: Não foi possível alinhar (4 cantos não encontrados). Pulando.")
+            print(f"  -> ERRO: Não foi possível alinhar ({motivo_falha}). Pulando.")
+            falhas_alinhamento[nome_base] = motivo_falha
             continue
 
         if extrair_inscricao:
@@ -157,7 +166,18 @@ def processar_simulados(
         if extrair_respostas:
             extrair_bolhas_respostas(imagem_alinhada_cinza, nome_base, pasta_bolhas)
 
+    # Persiste o registro de falhas desta rodada (sobrescreve o de rodadas
+    # anteriores — o arquivo reflete sempre o último lote extraído).
+    caminho_falhas = Path(FALHAS_ALINHAMENTO_PATH)
+    caminho_falhas.parent.mkdir(parents=True, exist_ok=True)
+    with open(caminho_falhas, "w", encoding="utf-8") as f:
+        json.dump(falhas_alinhamento, f, ensure_ascii=False, indent=2)
+
+    if falhas_alinhamento:
+        print(f"\n{len(falhas_alinhamento)} folha(s) descartada(s) por falha de alinhamento "
+              f"(registradas em '{caminho_falhas}').")
     print("\nProcessamento em lote concluído com sucesso!")
+    return falhas_alinhamento
 
 
 if __name__ == "__main__":
