@@ -53,7 +53,7 @@ CONFIG_SIMULADOS = {
             "CN": {"inicio": 41, "fim": 50}
         },
         "ALINHAMENTO": {
-            "AREA_MINIMA_MARCADOR": 10000,  # Tolerância maior para variações de DPI
+            "AREA_MINIMA_MARCADOR": 5000,
             "MARGEM_FRACAO": 0.20          # Janela de busca de 30% nas bordas
         },
         "GRADE_RESPOSTAS": {
@@ -77,7 +77,7 @@ CONFIG_SIMULADOS = {
             "Linguagens": {"inicio": 46, "fim": 60}
         },
         "ALINHAMENTO": {
-            "AREA_MINIMA_MARCADOR": 9500,  # Ajustado para o escaneamento do SEMI
+            "AREA_MINIMA_MARCADOR": 5000,
             "MARGEM_FRACAO": 0.22          # Janela mais ampla para evitar perda de cantos
         },
         "GRADE_RESPOSTAS": {
