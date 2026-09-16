@@ -43,7 +43,10 @@ def gerar_excel_final():
         
         resposta_correta = gabarito_oficial[i-1].strip().upper()
         
-        df_acertos[col_q] = (resposta_aluno == resposta_correta).astype(int)
+        if resposta_correta == 'X':
+            df_acertos[col_q] = 1
+        else:
+            df_acertos[col_q] = (resposta_aluno == resposta_correta).astype(int)
         
     # 3. Estatísticas por Aluno
     df_estatisticas = pd.DataFrame()
