@@ -5,8 +5,8 @@
 # Configuracao de maquina local (caminhos pessoais)
 corretor/config_local.py
 
-+ # Downloads
-+ /Claude outputs/
+# Downloads
+/Claude outputs/
 
 # Python
 __pycache__/
