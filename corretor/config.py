@@ -73,15 +73,22 @@ CONFIG_SIMULADOS = {
             # fica.
             "MARGEM_CORTE_BORDA_FRACAO": 0.01,
         },
+        # Coordenadas medidas diretamente em gabaritos reais (3 lotes
+        # escaneados do CASDINHO + a mesma medicao no SEMI, que usa a
+        # identica grade fisica). passo_x/passo_y sao float -- o recorte
+        # arredonda cada borda individualmente (round()) em vez de truncar
+        # um passo inteiro reaproveitado em todas as linhas/colunas. Isso
+        # evita o erro que se acumulava ao longo de 16 linhas (chegava a
+        # ~20px de desvio na questao 16/32/48 de cada bloco) e produzia os
+        # recortes em formato de meia-lua reportados na planilha de revisao.
         "GRADE_RESPOSTAS": {
-            "altura_alinhada": 1130,
-            "y_questoes_ini": 690,
-            "passo_y_divisor": 16,
+            "y_questoes_ini": 671.9,
+            "passo_y": 26.56,
             "blocos": [
-                {"x": (25, 155), "linhas": 16},
-                {"x": (190, 320), "linhas": 16},
-                {"x": (355, 485), "linhas": 16},
-                {"x": (520, 650), "linhas": 2},
+                {"x_ini": 13.2, "passo_x": 25.61, "linhas": 16},
+                {"x_ini": 181.5, "passo_x": 25.52, "linhas": 16},
+                {"x_ini": 349.5, "passo_x": 25.53, "linhas": 16},
+                {"x_ini": 517.5, "passo_x": 25.73, "linhas": 2},
             ]
         }
     },
@@ -98,15 +105,18 @@ CONFIG_SIMULADOS = {
             "MARGEM_FRACAO": 0.22,         # Janela mais ampla para evitar perda de cantos
             "MARGEM_CORTE_BORDA_FRACAO": 0.01,
         },
+        # Mesma grade fisica do CASDINHO (confirmado medindo os 2 lotes
+        # CASDINHO reais + o compilado de gabaritos SEMI: os centros de
+        # bolha caem nos mesmos pixels em ambas as provas). So o ultimo
+        # bloco muda, com 12 linhas (questoes 49-60) em vez de 2.
         "GRADE_RESPOSTAS": {
-            "altura_alinhada": 1130,
-            "y_questoes_ini": 690,
-            "passo_y_divisor": 16,
+            "y_questoes_ini": 671.9,
+            "passo_y": 26.56,
             "blocos": [
-                {"x": (25, 155), "linhas": 16},
-                {"x": (190, 320), "linhas": 16},
-                {"x": (355, 485), "linhas": 16},
-                {"x": (520, 650), "linhas": 12}, 
+                {"x_ini": 13.2, "passo_x": 25.61, "linhas": 16},
+                {"x_ini": 181.5, "passo_x": 25.52, "linhas": 16},
+                {"x_ini": 349.5, "passo_x": 25.53, "linhas": 16},
+                {"x_ini": 517.5, "passo_x": 25.73, "linhas": 12},
             ]
         }
     }
@@ -152,11 +162,15 @@ ALTERNATIVAS = ["A", "B", "C", "D", "E"]
 NUM_DIGITOS_INSCRICAO = 7
 DIGITOS_INSCRICAO = list(range(10))
 
+# Coordenadas medidas diretamente em gabaritos reais (2 lotes CASDINHO +
+# o compilado SEMI -- a grade de inscricao e identica nas duas provas).
+# passo_x/passo_y sao float; extrair_bolhas_inscricao arredonda cada
+# borda (round()) em vez de truncar um passo inteiro fixo.
 GRADE_INSCRICAO = {
-    "x_ini": 590,
-    "x_fim": 780,
-    "y_ini": 78,
-    "y_fim": 380,
+    "x_ini": 583.6,
+    "passo_x": 28.14,
+    "y_ini": 74.3,
+    "passo_y": 29.18,
     "qtd_colunas": 7,
     "qtd_linhas": 10,
 }
