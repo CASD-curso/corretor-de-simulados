@@ -65,7 +65,13 @@ CONFIG_SIMULADOS = {
         },
         "ALINHAMENTO": {
             "AREA_MINIMA_MARCADOR": 5000,
-            "MARGEM_FRACAO": 0.20          # Janela de busca de 30% nas bordas
+            "MARGEM_FRACAO": 0.20,         # Janela de busca de 30% nas bordas
+            # Faixa cortada de cada lado da imagem ANTES de procurar
+            # marcador, pra borrao/mancha bem na borda da folha nem entrar
+            # como candidato. Bem menor que MARGEM_FRACAO -- so remove a
+            # faixa mais externa, nunca chega perto de onde o marcador real
+            # fica.
+            "MARGEM_CORTE_BORDA_FRACAO": 0.01,
         },
         "GRADE_RESPOSTAS": {
             "altura_alinhada": 1130,
@@ -89,7 +95,8 @@ CONFIG_SIMULADOS = {
         },
         "ALINHAMENTO": {
             "AREA_MINIMA_MARCADOR": 5000,
-            "MARGEM_FRACAO": 0.22          # Janela mais ampla para evitar perda de cantos
+            "MARGEM_FRACAO": 0.22,         # Janela mais ampla para evitar perda de cantos
+            "MARGEM_CORTE_BORDA_FRACAO": 0.01,
         },
         "GRADE_RESPOSTAS": {
             "altura_alinhada": 1130,

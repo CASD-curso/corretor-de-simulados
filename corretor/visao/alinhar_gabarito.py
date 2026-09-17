@@ -1,7 +1,71 @@
 """Alinhamento perspectivo do gabarito escaneado."""
+import itertools
+
 import cv2
 import numpy as np
 from corretor.config import CONFIG_SIMULADOS, SIMULADO_ATIVO
+
+
+def _ordenar_cantos(pontos):
+    """
+    Recebe 4 pontos (cx, cy) em qualquer ordem e devolve
+    (superior_esquerdo, superior_direito, inferior_direito, inferior_esquerdo).
+    Mesma regra de soma/diferença já usada mais abaixo na função principal.
+    """
+    pontos = np.array(pontos, dtype="float32")
+    somas = pontos.sum(axis=1)
+    diferencas = np.diff(pontos, axis=1)
+    return (
+        pontos[np.argmin(somas)],
+        pontos[np.argmin(diferencas)],
+        pontos[np.argmax(somas)],
+        pontos[np.argmax(diferencas)],
+    )
+
+
+def _distancia(p, q):
+    return float(np.linalg.norm(np.array(p) - np.array(q)))
+
+
+def _pontuacao_retangulo(quatro_pontos):
+    """
+    Quanto menor, mais os 4 pontos se parecem com um retângulo: soma do
+    quanto os dois lados opostos diferem entre si e do quanto as duas
+    diagonais diferem entre si. Um retângulo perfeito dá pontuação 0.
+    """
+    se, sd, id_, ie = _ordenar_cantos(quatro_pontos)
+
+    lado_superior = _distancia(se, sd)
+    lado_inferior = _distancia(ie, id_)
+    lado_esquerdo = _distancia(se, ie)
+    lado_direito = _distancia(sd, id_)
+    diagonal_1 = _distancia(se, id_)
+    diagonal_2 = _distancia(sd, ie)
+
+    return (
+        abs(lado_superior - lado_inferior)
+        + abs(lado_esquerdo - lado_direito)
+        + abs(diagonal_1 - diagonal_2)
+    )
+
+
+def _escolher_melhor_quadrilatero(candidatos):
+    """
+    Quando sobram mais de 4 candidatos a marcador (ex.: um borrão na folha
+    que também caiu dentro da margem de canto), testa todas as combinações
+    de 4 e devolve a que mais se aproxima de um retângulo. Com poucos
+    candidatos (a situação real: 5 ou 6, nunca dezenas), o número de
+    combinações é pequeno o suficiente para testar todas sem otimização.
+    """
+    melhor_combinacao = None
+    melhor_pontuacao = None
+    for combinacao in itertools.combinations(candidatos, 4):
+        pontuacao = _pontuacao_retangulo(combinacao)
+        if melhor_pontuacao is None or pontuacao < melhor_pontuacao:
+            melhor_pontuacao = pontuacao
+            melhor_combinacao = combinacao
+    return list(melhor_combinacao), melhor_pontuacao
+
 
 def alinhar_gabarito(caminho_imagem):
     """
@@ -17,11 +81,17 @@ def alinhar_gabarito(caminho_imagem):
     # Pega as configurações do simulado ativo atual (CASDINHO ou SEMI)
     config_atual = CONFIG_SIMULADOS.get(SIMULADO_ATIVO, CONFIG_SIMULADOS["CASDINHO"])
     params_alinhamento = config_atual.get("ALINHAMENTO", {"AREA_MINIMA_MARCADOR": 5000, "MARGEM_FRACAO": 0.30})
-    
+
     LARGURA_ALINHADA = 800
     ALTURA_ALINHADA = 1130
     AREA_MINIMA_MARCADOR = params_alinhamento["AREA_MINIMA_MARCADOR"]
     MARGEM_FRACAO = params_alinhamento["MARGEM_FRACAO"]
+    # Faixa bem fina na borda externa da folha que é ignorada antes de
+    # procurar marcador -- existe pra um borrão ou mancha exatamente na
+    # beirada da folha (ex.: sombra do scanner, resto de fita) não entrar
+    # nem como candidato. .get() com default: funciona mesmo se algum
+    # SIMULADO_ATIVO não tiver essa chave configurada ainda.
+    MARGEM_CORTE_BORDA_FRACAO = params_alinhamento.get("MARGEM_CORTE_BORDA_FRACAO", 0.01)
 
     caminho_str = str(caminho_imagem)
     img_array = np.fromfile(caminho_str, np.uint8)
@@ -45,6 +115,20 @@ def alinhar_gabarito(caminho_imagem):
     )
 
     altura, largura = imagem_binaria.shape
+
+    # Apaga (vira fundo) uma faixa fina em toda a borda antes de procurar
+    # contorno. Qualquer mancha que esteja só nessa faixa nunca vira
+    # candidato a marcador; um marcador real, bem mais para dentro da
+    # folha, não é afetado.
+    corte_x = int(largura * MARGEM_CORTE_BORDA_FRACAO)
+    corte_y = int(altura * MARGEM_CORTE_BORDA_FRACAO)
+    if corte_x > 0:
+        imagem_binaria[:, :corte_x] = 0
+        imagem_binaria[:, largura - corte_x:] = 0
+    if corte_y > 0:
+        imagem_binaria[:corte_y, :] = 0
+        imagem_binaria[altura - corte_y:, :] = 0
+
     contornos, _ = cv2.findContours(
         imagem_binaria, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
     )
@@ -74,6 +158,19 @@ def alinhar_gabarito(caminho_imagem):
 
     if len(marcadores) == 4:
         pass
+    elif len(marcadores) > 4:
+        # Mais de 4 candidatos: normalmente é um borrão, rasura ou sombra
+        # que também caiu dentro da margem de canto e passou no filtro de
+        # área. Em vez de descartar a folha, escolhe entre todas as
+        # combinações de 4 a que mais forma um retângulo -- os 4 marcadores
+        # reais, por construção, formam um retângulo; um borrão extra não
+        # tende a completar essa forma tão bem quanto o marcador que ele
+        # substituiria.
+        n_candidatos = len(marcadores)
+        marcadores, pontuacao = _escolher_melhor_quadrilatero(marcadores)
+        print(f" -> [{SIMULADO_ATIVO}] {n_candidatos} candidatos a marcador encontrados "
+              f"(esperado: 4) -- escolhidos os 4 que formam o retangulo mais regular "
+              f"(pontuacao {pontuacao:.1f}, 0 = retangulo perfeito).")
     elif len(marcadores) == 3:
         # Ordenamos os marcadores por Y e depois X para reconstruir o 4º canto geometricamente
         marcadores = sorted(marcadores, key=lambda p: (p[1], p[0]))
