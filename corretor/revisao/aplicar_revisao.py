@@ -18,6 +18,28 @@ def _normalizar_resposta_questao(valor):
     return MAPA_QUESTAO.get(valor, valor)
 
 
+def _normalizar_digito_inscricao(valor, simulado, campo):
+    """
+    Quando o operador digita só um dígito solto (0-9) numa célula do Excel
+    sem formatação de texto, o Excel guarda isso como NÚMERO, não como
+    texto. openpyxl(data_only=True) então devolve um float, e
+    str(1.0).strip() é "1.0" -- 3 caracteres, não 1. Sem essa limpeza, essa
+    string de 3 caracteres é escrita em UMA posição do número de
+    inscrição, e o ".0" sobra ali dentro ao juntar tudo de novo, deslocando
+    e corrompendo as posições vizinhas (ex.: "2601105" virava algo como
+    "26011.005").
+    """
+    valor = valor.strip().upper()
+    if valor.endswith(".0") and valor[:-2].isdigit():
+        valor = valor[:-2]
+    if len(valor) != 1:
+        print(f"AVISO: '{simulado}' campo '{campo}' -- valor corrigido inesperado "
+              f"'{valor}' (esperado 1 caractere). Usando '?' para não corromper "
+              f"as posições vizinhas.")
+        valor = "?"
+    return valor
+
+
 def _recalcular_link_revisao(linha, simulados_com_pendencia_restante):
     """
     Depois da correcao, "EM BRANCO" ou "NULA(MARCADAS>1)" podem ser
@@ -80,8 +102,9 @@ def aplicar_revisao(caminho_planilha_revisada, linhas_originais):
                 linha[campo] = _normalizar_resposta_questao(corrigido)
             elif campo.startswith("pos"):
                 pos = int(campo[3:])
+                digito_corrigido = _normalizar_digito_inscricao(corrigido, simulado, campo)
                 inscricao = list(linha.get("Inscricao", "").ljust(NUM_DIGITOS_INSCRICAO, "?"))
-                inscricao[pos] = corrigido.upper()
+                inscricao[pos] = digito_corrigido
                 linha["Inscricao"] = "".join(inscricao)
 
     # -------- aba Checkup: folhas descartadas no alinhamento --------
