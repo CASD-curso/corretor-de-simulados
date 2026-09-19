@@ -1,6 +1,6 @@
 # Projeto Leitor de Gabaritos — Plano de Alterações
 
-*Revisão de 18/09/2026 (noite). Incorpora as decisões sobre a revisão geral de código feita nesta data.*
+*Revisão de 19/09/2026. Incorpora o desenho do dataset novo (dia a dia + vestibular) para o retreino do item 7.*
 
 ## Princípios que guiam este plano
 
@@ -340,24 +340,109 @@ que o dataset atual não representa.
 
 **Solução, em ordem:**
 
-1. Rotular ~100 casos ambíguos reais e **separá-los como conjunto de
-   calibração**, não usar no treino. Serve de métrica objetiva de antes/depois.
+1. Rotular o dataset novo conforme o desenho da seção 7.0 abaixo — dois
+   contextos de aplicação, amostragem por questão inteira, sem curadoria manual
+   de dificuldade.
 2. Adicionar dropout e/ou weight decay, contra a saturação instantânea.
-3. Treinar **do zero**, com pesos aleatórios, incluindo os exemplos ambíguos, e
-   **sem augmentation** nesta primeira rodada. Partir do checkpoint antigo
-   contaminaria o teste do passo 4 com o viés do lote velho.
-4. **Split por lote, não por imagem.** Treino e validação usam 100% de um lote
-   novo de ~600 recortes; teste usa 100% do lote antigo (620), nunca visto em
-   treino. Como vem de outra sessão de scan, é a métrica honesta de generalização
-   entre sessões.
-5. **Augmentation fica condicional ao passo 4.** Se o teste no lote antigo vier
-   bom, inclusive nos ambíguos, não é necessário. Testar em etapas evita não
-   saber, no fim, qual mudança foi responsável pelo resultado.
+3. Treinar **do zero**, com pesos aleatórios, **sem augmentation** nesta primeira
+   rodada. Partir do checkpoint antigo contaminaria o teste do passo 4 com o
+   viés do lote velho.
+4. **Split por contexto e por corredor, não por imagem.** Treino e validação
+   usam as folhas de dia a dia e de vestibular sorteadas para essa finalidade
+   (seção 7.0); teste usa folhas de dia a dia não sorteadas (Teste A) e um
+   corredor inteiro de vestibular retido (Teste B), nenhum dos dois visto em
+   treino.
+5. **Augmentation fica condicional ao passo 4.** Se os testes A e B vierem bons,
+   inclusive nos ambíguos, não é necessário. Testar em etapas evita não saber,
+   no fim, qual mudança foi responsável pelo resultado.
 6. **Recalibrar os limiares depois do passo 4.** Com dropout e marcação fraca no
    treino, a distribuição de saída tende a ficar menos extrema; os valores atuais
    podem não servir mais.
 7. **Trocar a regra de decisão por uma regra relativa** — decidido em 18/09/2026,
    e só depois do retreino. Detalhe abaixo.
+
+### 7.0 — Desenho do dataset novo (decisão de 19/09/2026)
+
+**Mudança de premissa em relação à versão anterior deste item:** o dataset
+deixa de vir de um lote único (620 recortes, 7-8 folhas de simulado tranquilo).
+Passa a vir de dois contextos de aplicação distintos:
+
+- **Dia a dia** — o uso real do sistema, simulados semanais do CASD, sem
+  pressão de tempo de vestibular. 2 lotes novos, 335 folhas (215 + 120).
+- **Vestibular** — aplicação de alta pressão, disponível em volume (1.250
+  folhas em 6 corredores). Usado como fonte auxiliar, não como maioria do
+  treino, para não deslocar o modelo para longe do cenário de uso real.
+
+**Achado que motivou a proporção:** ao contrário do que se supunha, marcação
+fraca é predominante no **dia a dia**, não no vestibular — o cenário de uso
+real é o mais difícil, não o mais fácil. Isso inverte a lógica inicial de
+"usar vestibular para ensinar o caso difícil": o dia a dia já é essa fonte.
+
+**Proporção de treino:** 70% dia a dia / 30% vestibular, por número de folhas
+— 80 folhas de dia a dia e 27 de vestibular (de pools de 335 e ~144
+disponíveis, respectivamente; o restante fica de fora do treino, disponível
+para ampliar depois se necessário).
+
+**Método de amostragem, para não introduzir viés de curadoria manual:**
+
+- Folhas sorteadas por seed fixa (reprodutível), nunca escolhidas por
+  inspeção visual de dificuldade.
+- Vestibular sorteado de pelo menos 2-3 corredores distintos, nunca de um
+  só — preserva diversidade populacional sem inflar volume.
+- Dentro de cada folha sorteada, rotula-se **2 questões inteiras** (as 5
+  alternativas de cada, 10 bolhas) — não bolhas soltas. Preserva
+  automaticamente a proporção real de 1 marcada / 4 vazias por questão, e
+  aproveita `montar_imagem.py` (já existe) para anotar vendo o contexto
+  comparativo das 5 alternativas lado a lado.
+- Grade de inscrição recebe amostragem reduzida (1 grupo de 10 dígitos, em
+  15% das folhas) — decisão deliberada de não replicar o esforço de
+  rotulagem ali. Justificativa: o classificador é binário e não distingue de
+  qual grade veio o recorte (mesma entrada 32×32, mesma decisão
+  preenchida/vazia) — treinar bem em alternativas transfere para inscrição
+  por construção da arquitetura. A amostra reduzida serve como checagem de
+  que não há desvio sistemático entre grades, não como treino pesado de uma
+  tarefa separada.
+- Proporção de classe mantida natural (~1:4 marcada:vazia), não forçada a
+  50/50 — é a proporção real do problema, e o desbalanceamento moderado não é
+  a causa da saturação já diagnosticada (falta de diversidade de traço, não
+  de proporção de classe). Ajuste de peso de classe (`pos_weight`) fica
+  reservado para depois do treino, só se a matriz de confusão mostrar viés
+  sistemático.
+
+**Tabela de anotações necessárias (total: 1.000 recortes):**
+
+| Contexto | Grade | Classe | Nº de recortes |
+|---|---|---|---|
+| Dia a dia | Alternativas | Marcada | 112 |
+| Dia a dia | Alternativas | Vazia | 448 |
+| Dia a dia | Inscrição | Marcada | 7 |
+| Dia a dia | Inscrição | Vazia | 63 |
+| Vestibular | Alternativas | Marcada | 48 |
+| Vestibular | Alternativas | Vazia | 192 |
+| Vestibular | Inscrição | Marcada | 3 |
+| Vestibular | Inscrição | Vazia | 27 |
+| **Total** | | | **1.000** |
+
+**Split de teste, revisado:** o lote antigo (620 recortes, a base do dataset
+até hoje) é **excluído por inteiro** — não entra em treino nem serve mais
+como teste. Passam a existir dois testes com propósitos diferentes:
+
+- **Teste A (uso real):** folhas de dia a dia não sorteadas para
+  treino/validação.
+- **Teste B (robustez a marcação sob pressão):** 1 corredor inteiro de
+  vestibular, retido, nunca visto.
+
+**Ferramentas de apoio, divididas por natureza da tarefa:**
+
+- `corretor/treino/` — script de sorteio/segmentação: decide, a partir dos
+  pools de folhas por contexto, quais folhas/questões/grupos de dígito
+  entram na amostra, com seed fixa. É preparação de dataset, mesma natureza
+  de `dataset_e_dataloaders.py`, que já mora ali.
+- `corretor/revisao/` — interface de anotação: reaproveita `montar_imagem.py`
+  para montar a tira de 5 alternativas (ou 10 dígitos) e gera uma planilha
+  com dropdown de validação, no mesmo padrão que `aplicar_revisao.py` já lê.
+  É ferramenta de confirmação humana via planilha, mesma natureza do que já
+  existe ali — não mistura com o código de treino da rede.
 
 ### 7.1 — Regra de decisão relativa (passo 7)
 
@@ -392,24 +477,25 @@ números, troca-se a forma da regra e calibra-se uma constante só.
 
 **Sobre lotes de scan:** um lote é o conjunto de folhas escaneadas na mesma
 sessão — mesmo dia, mesma passada de luz, geralmente a mesma remessa de papel e,
-na prática, um grupo pequeno de alunos com seu próprio jeito de marcar. Todas as
-~620 imagens de treino vêm de um lote só (prefixo `202606041948`, 7-8 folhas). A
-rede pode estar aprendendo artefatos daquele lote — exposição, textura do papel,
-o traço médio daqueles alunos — em vez do padrão real. E o `random_split` atual
-embaralha por imagem, então treino e validação contêm recortes do mesmo lote:
-não é teste de generalização, é teste dentro da mesma distribuição.
+na prática, um grupo pequeno de alunos com seu próprio jeito de marcar. A rede
+pode estar aprendendo artefatos de um lote específico — exposição, textura do
+papel, o traço médio daqueles alunos — em vez do padrão real. E o `random_split`
+por imagem não protege contra isso: se treino e validação contêm recortes do
+mesmo lote, não é teste de generalização, é teste dentro da mesma distribuição.
+O desenho da seção 7.0 substitui esse risco por split por contexto e por
+corredor — nenhuma folha de teste (A ou B) pertence ao mesmo lote de scan usado
+em treino ou validação.
 
-**Nota de implementação:** os dois lotes já são conjuntos de arquivos separados,
-então não junte as pastas num único `ImageFolder`. `preparar_dataloaders()`
-aponta só para o lote novo, com o split 70/15 já existente dentro dele; o lote
-antigo vira um segundo `ImageFolder`, usado só em `avaliar_teste.py`.
+**Nota de implementação:** o lote antigo (620 recortes, base do dataset até
+hoje) sai de cena por inteiro — não entra em treino nem serve mais de teste
+(decisão de 19/09/2026, seção 7.0). `preparar_dataloaders()` passa a apontar
+para o dataset novo (dia a dia + vestibular, seção 7.0), com o split
+treino/validação dentro dele; os testes A e B (folhas retidas) alimentam
+`avaliar_teste.py`.
 
-**Ao curar os 300 recortes de "preenchida" do lote novo:** priorizar marcação
-fraca e parcial, não só marcas escuras e óbvias — é o ponto de trazer esse lote.
-
-**Depois de validar:** se a acurácia no lote antigo vier boa, considerar uma
-versão final de produção treinada com os dois lotes combinados — mas só depois de
-registrado o resultado do teste limpo como referência honesta.
+**Ao rotular os recortes de "marcada":** priorizar marcação fraca e parcial,
+não só marcas escuras e óbvias, dentro do que a amostragem por questão inteira
+(seção 7.0) já trouxer — é o ponto de trazer os dois contextos novos.
 
 **Fazer o item 17 antes de começar:** enquanto `treinar.py` sobrescrever o arquivo
 de produção, comparar modelos nesta fase é pedir para perder a referência.
