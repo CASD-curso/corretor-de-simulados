@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from corretor.config import CNN_BOLHAS_PATH, HISTORICO_TREINO_PATH
+from corretor.config import CNN_BOLHAS_CANDIDATO_PATH, HISTORICO_TREINO_PATH
 from corretor.treino.dataset_e_dataloaders import preparar_dataloaders
 from corretor.rede.arquitetura_da_rede import CNNBin
 
@@ -20,7 +20,10 @@ def main():
 
     modelo = CNNBin().to(device)
     criterion = nn.BCELoss()
-    optimizer = optim.Adam(modelo.parameters(), lr=learning_rate)
+    # weight_decay: regularização L2, item do plano, junto com o Dropout em
+    # CNNBin combate overfitting no dataset novo (dropout ataca dependência
+    # de neurônios específicos; weight_decay ataca pesos individuais grandes).
+    optimizer = optim.Adam(modelo.parameters(), lr=learning_rate, weight_decay=1e-4)
 
     historico = {"train_loss": [], "train_acc": [], "val_loss": [], "val_acc": []}
 
@@ -82,8 +85,12 @@ def main():
             f"Val Loss: {epoch_val_loss:.4f} Acc: {epoch_val_acc:.2f}%"
         )
 
-    torch.save(modelo.state_dict(), CNN_BOLHAS_PATH)
-    print(f"\nTreinamento concluído! Pesos salvos em '{CNN_BOLHAS_PATH}'.")
+    # Item 17 do plano: nunca escreve direto em CNN_BOLHAS_PATH (produção).
+    # Salva num arquivo candidato -- promover para produção é manual, feito
+    # só depois de validar o resultado (inclusive no Teste B).
+    torch.save(modelo.state_dict(), CNN_BOLHAS_CANDIDATO_PATH)
+    print(f"\nTreinamento concluído! Pesos candidatos salvos em '{CNN_BOLHAS_CANDIDATO_PATH}'.")
+    print("Produção NÃO foi alterada. Valide o candidato antes de promovê-lo manualmente.")
 
     with open(HISTORICO_TREINO_PATH, "w") as f:
         json.dump(historico, f)

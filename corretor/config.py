@@ -30,6 +30,13 @@ DATASET_TREINO_DIR = ROOT / "dataset"   # versionado: crops de bolha, sem dado p
 PESOS_DIR = ROOT / "pesos"              # versionado: 13 KB
 CNN_BOLHAS_PATH = PESOS_DIR / "cnn_bolhas.pth"
 
+# Item 17 do plano de alterações: treinar.py NUNCA escreve em CNN_BOLHAS_PATH
+# (o peso em produção, usado pela inferência de verdade) -- salva aqui, num
+# arquivo separado. Promover para produção é uma ação manual (copiar este
+# arquivo por cima de CNN_BOLHAS_PATH), só depois de validar o resultado do
+# treino novo, inclusive no Teste B (corredor G2, nunca visto no treino).
+CNN_BOLHAS_CANDIDATO_PATH = PESOS_DIR / "cnn_bolhas_candidato.pth"
+
 HISTORICO_TREINO_PATH = OUTPUTS_DIR / "historico_treino.json"
 GRAFICO_TREINAMENTO_PATH = OUTPUTS_DIR / "grafico_treinamento.png"
 EXEMPLO_PREDICOES_PATH = OUTPUTS_DIR / "exemplo_predicoes.png"
@@ -46,6 +53,22 @@ FALHAS_ALINHAMENTO_PATH = OUTPUTS_DIR / "falhas_alinhamento.json"
 # aplicar_revisao() lê a versão que o operador baixou, revisou e subiu de
 # volta.
 PLANILHA_REVISAO_PATH = OUTPUTS_DIR / "planilha_revisao.xlsx"
+
+# =====================================================================
+# DATASET NOVO (item 7, seção 7.0) -- caminhos de origem das folhas para
+# a amostragem de treino. Cada pessoa aponta os próprios caminhos em
+# config_local.py; sem ele, ficam None, e sortear_amostra.py avisa que
+# faltou configurar em vez de tentar rodar com caminho errado.
+# =====================================================================
+DATASET_NOVO_SIMULADO = None
+DATASET_NOVO_SIMULADO_EXTRA = None
+DATASET_NOVO_CORREDORES_DIR = {}
+AMOSTRA_SORTEADA_CSV_PATH = OUTPUTS_DIR / "amostra_sorteada.csv"
+
+# gerar_planilha_anotacao.py lê AMOSTRA_SORTEADA_CSV_PATH acima e escreve
+# aqui a planilha pronta para o anotador preencher (mesmo papel que
+# PLANILHA_REVISAO_PATH tem para o fluxo de revisão de notas).
+PLANILHA_ANOTACAO_PATH = OUTPUTS_DIR / "planilha_anotacao.xlsx"
 
 # =====================================================================
 # DICIONÁRIO DINÂMICO DE SIMULADOS
@@ -131,7 +154,7 @@ try:
     with open(LOCAL_DIR / "simulado_ativo.txt", "r") as f:
         SIMULADO_ATIVO = f.read().strip()
 except FileNotFoundError:
-    SIMULADO_ATIVO = "CASDINHO" 
+    SIMULADO_ATIVO = "CASDINHO"
 
 # Lê o nome customizado do simulado definido no Colab
 try:
@@ -152,11 +175,11 @@ ESTRUTURA_MATERIAS = _cfg["MATERIAS"]
 # =====================================================================
 LIMIAR_MAXIMO = 0.95
 LIMIAR_DUPLA = 0.60
-PRE_PROC_GAMMA = 1.5          
-PRE_PROC_USAR_CLAHE = False   
+PRE_PROC_GAMMA = 1.5
+PRE_PROC_USAR_CLAHE = False
 PRE_PROC_CLAHE_CLIP = 2.0
 ADAPTIVE_THRESH_BLOCK = 11
-ADAPTIVE_THRESH_C = 0         
+ADAPTIVE_THRESH_C = 0
 
 ALTERNATIVAS = ["A", "B", "C", "D", "E"]
 NUM_DIGITOS_INSCRICAO = 7
@@ -181,3 +204,13 @@ for pasta in [ENTRADA_DIR, OUTPUTS_DIR, RECORTES_BOLHAS_DIR, RECORTES_INSCRICAO_
             pasta.mkdir(parents=True, exist_ok=True)
     except OSError:
         pass
+
+# =====================================================================
+# CONFIG LOCAL (item 2.1 do plano) -- sobrepõe caminhos pessoais sem
+# versionar nada sensível. config_local.py fica no .gitignore; sem ele,
+# o projeto roda inteiro com os padrões acima.
+# =====================================================================
+try:
+    from corretor.config_local import *  # noqa: F401,F403
+except ImportError:
+    pass
