@@ -70,6 +70,13 @@ AMOSTRA_SORTEADA_CSV_PATH = OUTPUTS_DIR / "amostra_sorteada.csv"
 # PLANILHA_REVISAO_PATH tem para o fluxo de revisão de notas).
 PLANILHA_ANOTACAO_PATH = OUTPUTS_DIR / "planilha_anotacao.xlsx"
 
+# Documento de metodologia (docs/metodologia_teste_acuracia_bolhas.md):
+# sortear_amostra_teste.py grava aqui a amostra sorteada do POOL DE TESTE
+# isolado (Teste A + Teste B), separada de AMOSTRA_SORTEADA_CSV_PATH acima
+# (que é a amostra do TREINO) -- os dois nunca podem ser o mesmo arquivo,
+# ou um sorteio sobrescreve o outro.
+AMOSTRA_TESTE_CSV_PATH = OUTPUTS_DIR / "amostra_teste.csv"
+
 # =====================================================================
 # DICIONÁRIO DINÂMICO DE SIMULADOS
 # =====================================================================
