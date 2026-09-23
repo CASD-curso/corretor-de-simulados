@@ -13,6 +13,14 @@ estatisticas): duas abas.
 
 Essa planilha nao calcula nota nem estatistica. E so o ponto onde a revisao
 humana acontece, antes do calculo em corretor.relatorio.gerar_excel.
+
+Modo escuro (decisao do usuario, 23/09/2026): fundo preto e texto branco em
+toda a planilha, nas duas abas. Duas excecoes deliberadas, para nao perder
+sinalizacao util: as celulas de INPUT (onde o operador digita a correcao)
+ficam num cinza escuro (#262626) em vez de preto puro, para continuar
+visualmente diferentes de uma celula de leitura -- e o banner de alinhamento
+mantem uma borda amarela, para nao perder o alerta visual. Se preferir preto
+liso em tudo, sem nenhuma excecao, e so pedir.
 """
 from pathlib import Path
 
@@ -30,12 +38,13 @@ from corretor.revisao.montar_imagem import montar_tira
 
 TMP_IMG_DIR = Path("/tmp/corretor_revisao_imgs")
 
-CODIGOS_QUESTAO = "A/B/C/D/E/BRANCO/NULA"
+CODIGOS_QUESTAO = "A/B/C/D/E/BRANCO/MULT"
 CODIGOS_INSCRICAO = "0-9/?"
-VALORES_QUESTAO = ["A", "B", "C", "D", "E", "BRANCO", "NULA"]
+VALORES_QUESTAO = ["A", "B", "C", "D", "E", "BRANCO", "MULT"]
 VALORES_INSCRICAO = [str(d) for d in range(10)] + ["?"]
 
 IMAGEM_CORROMPIDA = "Imagem corrompida (sem preview)"
+INSCRICAO_AMBIGUA = "Em branco ou dupla marcação (ambígua)"
 
 
 def _caminho_bolha(simulado, num_questao, letra):
@@ -49,10 +58,10 @@ def _caminho_digito(simulado, pos, dig):
 def _motivo_questao(resposta, ilegivel):
     if ilegivel:
         return IMAGEM_CORROMPIDA
-    if resposta == "EM BRANCO":
-        return "Em branco (abaixo do limiar)"
-    if resposta == "NULA(MARCADAS>1)":
-        return "Dupla marcação (NULA)"
+    if resposta == "BRANCOM":
+        return "Em branco (BRANCOM — abaixo do limiar)"
+    if resposta == "MULTM":
+        return "Dupla marcação (MULTM)"
     return None  # resposta valida, nao precisa de revisao
 
 
@@ -60,7 +69,7 @@ def _motivo_inscricao(digito, ilegivel):
     if ilegivel:
         return IMAGEM_CORROMPIDA
     if digito == "?":
-        return "Em branco ou dupla marcação (ambígua)"
+        return INSCRICAO_AMBIGUA
     return None
 
 
@@ -79,7 +88,7 @@ def _listar_itens_pendentes(linhas, bolhas_ilegiveis, digitos_ilegiveis, falhas_
         ilegiveis_q = set(bolhas_ilegiveis.get(simulado, []))
         for q in range(1, NUM_QUESTOES + 1):
             campo = f"Q{q}"
-            resposta = linha.get(campo, "EM BRANCO")
+            resposta = linha.get(campo, "BRANCOM")
             motivo = _motivo_questao(resposta, campo in ilegiveis_q)
             if motivo:
                 itens.append({
@@ -113,14 +122,30 @@ def gerar_planilha_revisao(caminho_saida=None):
 
     wb = xlsxwriter.Workbook(str(caminho_saida))
 
-    fmt_titulo = wb.add_format({"bold": True, "font_size": 13})
-    fmt_banner = wb.add_format({"bold": True, "bg_color": "#FFF2CC", "border": 1, "valign": "vcenter"})
-    fmt_header = wb.add_format({"bold": True, "bg_color": "#D9E1F2", "border": 1, "valign": "vcenter"})
-    fmt_celula = wb.add_format({"border": 1, "valign": "vcenter"})
-    fmt_wrap = wb.add_format({"border": 1, "valign": "vcenter", "text_wrap": True})
-    fmt_link = wb.add_format({"border": 1, "valign": "vcenter", "font_color": "blue", "underline": True})
-    fmt_metrica = wb.add_format({"bold": True})
-    fmt_input = wb.add_format({"border": 1, "bg_color": "#FFFFFF", "valign": "vcenter"})
+    PRETO = "#000000"
+    BRANCO = "#FFFFFF"
+    CINZA_INPUT = "#262626"  # exceção deliberada -- ver docstring do módulo
+
+    fmt_titulo = wb.add_format({"bold": True, "font_size": 13, "bg_color": PRETO, "font_color": BRANCO})
+    fmt_banner = wb.add_format({
+        "bold": True, "bg_color": PRETO, "font_color": BRANCO, "valign": "vcenter",
+        "border": 2, "border_color": "#FFC107",  # exceção deliberada -- mantém o alerta visual
+    })
+    fmt_header = wb.add_format({
+        "bold": True, "bg_color": PRETO, "font_color": BRANCO, "border": 1,
+        "border_color": BRANCO, "valign": "vcenter",
+    })
+    fmt_celula = wb.add_format({"border": 1, "border_color": BRANCO, "bg_color": PRETO, "font_color": BRANCO, "valign": "vcenter"})
+    fmt_wrap = wb.add_format({
+        "border": 1, "border_color": BRANCO, "bg_color": PRETO, "font_color": BRANCO,
+        "valign": "vcenter", "text_wrap": True,
+    })
+    fmt_link = wb.add_format({
+        "border": 1, "border_color": BRANCO, "bg_color": PRETO, "font_color": "#4EA8FF", "underline": True, "valign": "vcenter",
+    })
+    fmt_metrica = wb.add_format({"bold": True, "bg_color": PRETO, "font_color": BRANCO})
+    fmt_valor = wb.add_format({"bg_color": PRETO, "font_color": BRANCO})
+    fmt_input = wb.add_format({"border": 1, "border_color": BRANCO, "bg_color": CINZA_INPUT, "font_color": BRANCO, "valign": "vcenter"})
 
     # ================= aba Checkup =================
     ck = wb.add_worksheet("Checkup")
@@ -129,13 +154,13 @@ def gerar_planilha_revisao(caminho_saida=None):
 
     ck.write("A1", "Checkup do lote", fmt_titulo)
     ck.write("A3", "Simulados processados", fmt_metrica)
-    ck.write("B3", len(linhas))
+    ck.write("B3", len(linhas), fmt_valor)
     ck.write("A4", "Sem nenhuma pendência", fmt_metrica)
-    ck.write("B4", simulados_sem_pendencia)
+    ck.write("B4", simulados_sem_pendencia, fmt_valor)
     ck.write("A5", "Com pendência corrigível (ver aba Correção)", fmt_metrica)
-    ck.write("B5", len(simulados_com_pendencia))
+    ck.write("B5", len(simulados_com_pendencia), fmt_valor)
     ck.write("A6", "Descartados no alinhamento (não têm bolha extraída)", fmt_metrica)
-    ck.write("B6", len(falhas_alinhamento))
+    ck.write("B6", len(falhas_alinhamento), fmt_valor)
 
     row = 8
     if falhas_alinhamento:
@@ -169,6 +194,7 @@ def gerar_planilha_revisao(caminho_saida=None):
     cr.set_column("C:C", 30)
     cr.set_column("D:D", 14)
     cr.set_column("E:E", 46)
+    cr.set_column("F:F", 22)
 
     n_itens = len(itens)
     primeira_linha = 2  # 0-idx, logo apos o header (sem pular linha)
@@ -180,12 +206,12 @@ def gerar_planilha_revisao(caminho_saida=None):
             f'=CONCATENATE("Faltam ", COUNTBLANK({faixa_corrigido}), " de {n_itens} revisar   |   '
             f'Questão: {CODIGOS_QUESTAO} — Inscrição: {CODIGOS_INSCRICAO}")'
         )
-        cr.merge_range(0, 0, 0, 4, banner_formula, fmt_banner)
+        cr.merge_range(0, 0, 0, 5, banner_formula, fmt_banner)
     else:
-        cr.merge_range(0, 0, 0, 4, "Nenhum item pendente — pode seguir direto para o cálculo.", fmt_banner)
+        cr.merge_range(0, 0, 0, 5, "Nenhum item pendente — pode seguir direto para o cálculo.", fmt_banner)
     cr.set_row(0, 22)
 
-    for col, titulo in enumerate(["Simulado", "Campo", "Motivo", "Corrigido", "Alternativas"]):
+    for col, titulo in enumerate(["Simulado", "Campo", "Motivo", "Corrigido", "Alternativas", "Scan Original"]):
         cr.write(1, col, titulo, fmt_header)
 
     linha_por_simulado = {}  # simulado -> primeira linha (0-idx) na aba Correcao
@@ -197,6 +223,11 @@ def gerar_planilha_revisao(caminho_saida=None):
         cr.write(r, 1, item["campo"], fmt_celula)
         cr.write(r, 2, item["motivo"], fmt_wrap)
         cr.write(r, 3, "", fmt_input)
+        # Coluna F fica vazia por padrão -- só as linhas de inscrição
+        # ambígua (ver abaixo) recebem o link de scan completo. Precisa
+        # de algum conteúdo (mesmo vazio, com formato) pra manter o fundo
+        # escuro da linha inteira.
+        cr.write(r, 5, "", fmt_celula)
 
         if item["tipo"] == "questao":
             valores_aceitos = VALORES_QUESTAO
@@ -222,6 +253,16 @@ def gerar_planilha_revisao(caminho_saida=None):
                 img_path = TMP_IMG_DIR / f"item_{i}.png"
                 tira.save(img_path)
                 cr.insert_image(r, 4, str(img_path), {"x_offset": 4, "y_offset": 2})
+
+            # Pedido do usuário (23/09/2026): quando a posição está
+            # ambígua (branco OU dupla marcação -- hoje "?" não distingue
+            # as duas causas), a tira de dígitos isolados às vezes não é
+            # suficiente para o operador decidir -- ele precisa ver a
+            # folha inteira. Coluna F entrega esse link, reaproveitando o
+            # mesmo padrão de URL já usado para IMAGEM_CORROMPIDA.
+            if item["motivo"] == INSCRICAO_AMBIGUA:
+                url = f"https://drive.google.com/drive/search?q={item['simulado']}.tiff"
+                cr.write_url(r, 5, url, fmt_link, string="Ver folha completa")
 
         cr.data_validation(r, 3, r, 3, {
             "validate": "list",

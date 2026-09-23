@@ -45,13 +45,13 @@ def decidir_destinos(item: dict) -> dict:
     marcada: todos os recortes daquele item vão para vazia/, nenhum para
     preenchida/.
 
-    Anotações "NULA" marcam dupla marcação (ou outra ambiguidade): o item
+    Anotações "MULT" marcam dupla marcação (ou outra ambiguidade): o item
     inteiro é pulado, sem nenhum destino gerado -- nem preenchida/ nem
     vazia/ -- porque não dá pra saber, só pela planilha, qual das bolhas
     marcadas é a "extra" indevida. Incluir qualquer uma delas em vazia/
     ensinaria o modelo, errado, que uma bolha preenchida é vazia.
     """
-    if item["marcada"] == "NULA":
+    if item["marcada"] == "MULT":
         return {}
 
     destinos = {}

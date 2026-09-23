@@ -6,12 +6,12 @@ matriz de confusão por bolha e calibrar a margem de decisão por varredura
 (docs/metodologia_teste_acuracia_bolhas.md).
 
 Regras adotadas, decididas com o usuário em 22/09/2026:
-- Questões anotadas 'NULA' são excluídas da matriz por completo -- não dá
+- Questões anotadas 'MULT' são excluídas da matriz por completo -- não dá
   para saber, só pela anotação, qual das bolhas marcadas é a real (mesmo
   princípio já usado em aplicar_anotacao.decidir_destinos, para o dataset
   de treino).
-- Sob qualquer margem candidata, uma questão decidida como ambígua (EM
-  BRANCO, ou o equivalente a NULA da regra de margem -- duas
+- Sob qualquer margem candidata, uma questão decidida como ambígua (BRANCOM
+  do modelo, ou o equivalente a MULT da regra de margem -- duas
   probabilidades coladas) não aponta nenhuma bolha como "marcada pelo
   modelo": as 5 entram como predição "vazia". Consistente com o objetivo
   de minimizar falso positivo (seção 5).
@@ -79,15 +79,15 @@ def montar_matriz_confusao(
     """
     Percorre todos os itens anotados, decide a resposta de cada um sob a
     margem candidata e soma TP/FP/FN/TN por bolha (seção 4.1). Itens
-    anotados 'NULA' são pulados por inteiro (ground truth ambíguo); itens
+    anotados 'MULT' são pulados por inteiro (ground truth ambíguo); itens
     sem probabilidade (recorte não leu) também são pulados, e contados à
     parte em 'sem_dado'.
     """
-    contagem = {"TP": 0, "FP": 0, "FN": 0, "TN": 0, "nula_excluida": 0, "sem_dado": 0}
+    contagem = {"TP": 0, "FP": 0, "FN": 0, "TN": 0, "mult_excluida": 0, "sem_dado": 0}
 
     for rotulo, marcada in anotacoes.items():
-        if marcada == "NULA":
-            contagem["nula_excluida"] += 1
+        if marcada == "MULT":
+            contagem["mult_excluida"] += 1
             continue
 
         probs_item = probabilidades.get(rotulo)
@@ -167,7 +167,7 @@ def escolher_margem(resultados: list[dict], precisao_minima: float = PRECISAO_MI
     """
     Critério de seleção (seção 5, passo 5): a MENOR margem candidata que
     ainda garante a precisão mínima -- não a mais alta possível, para não
-    gerar excesso de EM BRANCO desnecessário. Devolve None se nenhuma
+    gerar excesso de BRANCOM desnecessário. Devolve None se nenhuma
     margem candidata atingir a precisão mínima (a varredura precisa ser
     ampliada, ou a meta revista).
     """
@@ -214,7 +214,7 @@ def calibrar_margem_teste() -> None:
         f"(IC 95% Wilson: [{ic_baixo:.2%}; {ic_alto:.2%}], n={total})"
     )
     print(
-        f"Itens excluídos -- NULA na anotação: {resultados[0]['nula_excluida']}, "
+        f"Itens excluídos -- MULT na anotação: {resultados[0]['mult_excluida']}, "
         f"sem dado (leitura falhou): {resultados[0]['sem_dado']}"
     )
 

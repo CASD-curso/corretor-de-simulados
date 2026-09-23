@@ -42,7 +42,7 @@ def main():
     respostas = []
     for q in range(1, config.NUM_QUESTOES + 1):
         if q not in por_questao:
-            respostas.append("EM BRANCO")
+            respostas.append("BRANCOM")
             continue
         probs = {}
         for alt in config.ALTERNATIVAS:
@@ -55,7 +55,7 @@ def main():
         respostas.append(padrao_da_questao(probs))
 
     print(f"Folha: {NOME_FOLHA}")
-    print("".join(r if r not in ("EM BRANCO", "NULA(MARCADAS>1)") else "?" for r in respostas))
+    print("".join(r if r not in ("BRANCOM", "MULTM") else "?" for r in respostas))
     print()
     for i, r in enumerate(respostas, 1):
         print(f"  Q{i}: {r}")

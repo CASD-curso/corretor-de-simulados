@@ -60,9 +60,9 @@ def gerar_planilha_unificada():
         # Pega a lista de respostas (ou lista vazia se falhou)
         respostas = dados_respostas.get(simulado, [])
 
-        # TRAVA DE SEGURANÇA: Completa com "EM BRANCO"
+        # TRAVA DE SEGURANÇA: Completa com "BRANCOM"
         while len(respostas) < NUM_QUESTOES:
-            respostas.append("EM BRANCO")
+            respostas.append("BRANCOM")
 
         # TRAVA DE SEGURANÇA 2: Corta se por acaso vierem mais respostas
         respostas = respostas[:NUM_QUESTOES]
@@ -82,8 +82,8 @@ def gerar_planilha_unificada():
         tem_erro = (
             ("?" in inscricao)
             or ("NAO_LIDO" in inscricao)
-            or ("EM BRANCO" in respostas)
-            or ("NULA(MARCADAS>1)" in respostas)
+            or ("BRANCOM" in respostas)
+            or ("MULTM" in respostas)
             or bool(motivo_alinhamento)
             or bool(bolhas_ilegiveis_txt)
         )

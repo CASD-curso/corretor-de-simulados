@@ -28,11 +28,11 @@ não que ela seja rápida. Otimizar tempo de máquina vem por último.
 
 ## Ordem de implementação
 
-`0 ✅ → 1 ✅ → 2 ⏸️ → 3 ✅ → 4 ✅ → 5 ✅ → 7 → 13 → 12 → 6/11/14 → 8 → 19 → 9 → EXTRA`
+`0 ✅ → 1 ✅ → 2 ⏸️ → 3 ✅ → 4 ✅ → 5 ✅ → 7 → 13 → 12 → 6 + 14 → 8 → 19 → 9 → EXTRA`
 
-Os itens **10, 15, 16, 17 e 18** são independentes e custam minutos cada um —
-encaixam em qualquer ponto da fila, inclusive como aquecimento de uma sessão
-dedicada a outro item.
+Os itens **10, 11, 15, 16, 17, 18, 20, 21, 22 e 23** são independentes e custam
+minutos cada um — encaixam em qualquer ponto da fila, inclusive como aquecimento
+de uma sessão dedicada a outro item.
 
 O item **2** virou o bloco único do modo local e está adiado por inteiro. O item
 **19** fica por último entre os de código, e o **9** (README) fecha tudo, porque
@@ -289,32 +289,7 @@ de rodar no Windows) e o item 12, que acrescenta a detecção de inscrição dup
 
 ---
 
-## 6/11/14. Prova de número de questões variável, com nota e matérias configuráveis  ⏸️ Depois do item 7
-
-**Aglutinado em 20/09/2026** (antes: itens 6, 11 e 14 separados). Os três
-resolvem a mesma raiz — hoje várias partes do código assumem "a prova tem 50 ou
-60 questões, com matérias em faixas fixas por template" — e o plano já os
-sequenciava juntos (11 antes de 6, 6 e 14 entrando junto); a numeração separada
-só espalhava um problema único em três seções.
-
-**Ordem de implementação interna, preservada:** primeiro a fórmula de nota (ex-11,
-abaixo), depois número de questões variável (ex-6) e matérias configuráveis
-(ex-14) juntos — os dois últimos não funcionam um sem o outro.
-
-### Fórmula de nota sem número escrito à mão (ex-item 11)
-
-**Problema:** `gerar_excel.py:76` decide o multiplicador com
-`2 if NUM_QUESTOES == 50 else (100 / 60)`. Os dois casos existentes são a mesma
-conta, e qualquer terceiro caso cai no `else` e sai errado sem avisar — numa
-aplicação de 45 questões (o cenário abaixo), a nota máxima viraria 75.
-
-**Solução:** `nota = acertos * 100 / NUM_QUESTOES`, sem condicional.
-
-**Justificativa:** troca dois números escritos à mão por uma fórmula que vale para
-qualquer prova. **Precisa estar feito antes do restante desta seção.** Custo:
-~0,1h, uma linha.
-
-### Número de questões variável por aplicação (ex-item 6)
+## 6. Número de questões variável por aplicação  ⏸️ Depois do item 7
 
 **Problema:** a coordenação às vezes aplica uma versão reduzida de uma prova já
 calibrada (o template SEMI suporta 60 questões, mas uma aplicação usou 45). Hoje
@@ -334,83 +309,23 @@ um gabarito de 60 letras, avisar antes de rodar, não depois.
 calibração para cada aplicação reduzida. Criar entrada nova em `CONFIG_SIMULADOS`
 continua sendo o caminho certo só quando a prova é fisicamente diferente, não
 apenas mais curta. E mantém o princípio: o usuário preenche um campo, não edita
-código. Custo: ~1–1,5h.
+código.
 
-### Matérias configuráveis por faixa ou por lista de questões (ex-item 14)
+**Entra junto com o item 14.** Número de questões variável sem faixa de matérias
+configurável não fecha: uma prova de 30 questões não tem como saber quais são de
+Português e quais de Matemática.
 
-**Problema:** a estrutura de matérias hoje é uma faixa fixa por template
-(`CONFIG_SIMULADOS[...][\"MATERIAS\"]`, com `inicio` e `fim`), e a lista de matérias
-que entra na nota está escrita à mão dentro do relatório
-(`gerar_excel.py:68-71`, `if SIMULADO_ATIVO == \"CASDINHO\"`). Com número de
-questões variável (seção acima), isso não fecha: uma prova de 30 questões não tem
-como saber quais são de Português e quais de Matemática.
-
-**Solução:**
-
-1. As provas com padrão fixo continuam como estão — CASDINHO (15 Português, 15
-   Matemática, …) e SEMI seguem definidos no `CONFIG_SIMULADOS`, sem o usuário
-   precisar preencher nada.
-2. Quando o número de questões for variável, o usuário escolhe a faixa de cada
-   matéria. Dois casos que precisam funcionar:
-   - uma prova de 15 questões, todas marcadas como Matemática;
-   - uma prova de 30 questões, as 15 primeiras Português e as 15 últimas
-     Matemática.
-3. A estrutura aceita tanto **faixa** (`início`–`fim`) quanto **lista de questões
-   específicas**, para o caso de uma matéria não ocupar posições contíguas.
-4. A lista de matérias que compõe a nota sai do código e vira chave do config.
-   Hoje o CASDINHO soma Português + Matemática + CH + CN, ignorando História,
-   Geografia, Biologia e Química, que são subdivisões já contadas dentro de CH e
-   CN — essa regra só existe escrita dentro do `if`, e some se alguém acrescentar
-   uma matéria ao config sem mexer no relatório.
-
-**Justificativa:** sem isso, número de questões variável não tem como saber quais
-matérias compõem a nota. Custo: ~1–1,5h.
+**Depende do item 11**, que precisa estar feito antes: enquanto o multiplicador da
+nota for `2 if NUM_QUESTOES == 50 else (100/60)`, qualquer número de questões
+diferente de 50 e 60 produz nota errada em silêncio.
 
 ---
 
-## 7. Robustez do modelo contra marcação fraca  🔶 PARCIALMENTE CONCLUÍDO (20/09/2026)
+## 7. Robustez do modelo contra marcação fraca  ▶️ PRÓXIMA FRENTE
 
-**Progresso desta sessão (20/09/2026):** os passos 1 a 4 da solução abaixo foram
-executados. Dataset novo rotulado conforme a seção 7.0 (224 recortes marcados,
-959 vazios, dois contextos de aplicação, lote antigo de 620 recortes excluído do
-treino e preservado à parte em `dataset/lote1_620/`). `CNNBin` recebeu
-`nn.Dropout(0.3)` antes da camada de decisão, e `treinar.py` passou a usar
-`weight_decay=1e-4` no otimizador Adam — os dois itens do passo 2. Modelo
-treinado do zero (15 épocas), sem augmentation, salvando em arquivo candidato
-(item 17), não em produção.
-
-**Teste B executado e resultado interpretado.** A avaliação contra o corredor
-`G2` (138 folhas, retido desde o sorteio, nunca visto em treino ou validação)
-rodou via `corretor/treino/avaliar_teste_b.py`, comparando o modelo novo e o
-modelo antigo — este último carregado por `CNNBinSemDropout`
-(`corretor/rede/arquitetura_da_rede.py`), uma réplica da arquitetura de antes do
-Dropout criada só para isso, já que o checkpoint antigo não carrega mais na
-classe `CNNBin` atual (o Dropout desloca o índice do `Linear` dentro do
-`Sequential`, de `classifier.1` para `classifier.2`). Resultado: **52,28% de
-acerto contra o gabarito oficial no modelo novo, 50,91% no antigo** — próximos
-entre si, o que já indicava não ser um problema específico de um modelo.
-
-Essa métrica (comparação direta com o gabarito) mistura dois fatores que a
-seção 7.1 já observa que devem ser distinguidos: o aluno errar a questão, e o
-software ler errado o que foi marcado. Para separar os dois, uma folha do
-corredor G2 (`20260901193429379_0001`) foi lida manualmente, questão a questão,
-e comparada com a leitura do software para essa mesma folha — **bateu 100%**.
-Isso descarta erro de leitura (incluindo a hipótese de inversão das
-probabilidades preenchida/vazia) e confirma que o resultado do Teste B reflete
-desempenho real dos alunos na prova, não falha do pipeline.
-
-**Modelo novo promovido para produção** (`pesos/cnn_bolhas.pth`) após essa
-validação; `pesos/cnn_bolhas_old.pth` mantido como backup, agora versionado.
-
-**Pendente dentro deste item:** passo 5 (decidir se precisa de augmentation —
-não avaliado ainda, já que o resultado do Teste B não isola erro de leitura,
-que já foi descartado, do desempenho real, que segue sem comparação com uma
-aplicação anterior da mesma prova) e passo 7 / seção 7.1 (regra de decisão por
-margem, ainda não implementada).
-
-**Problema original:** o dataset de treino vinha de uma única sessão de scan, sem
-marcação fraca ou parcial rotulada, e a rede não tinha dropout, weight decay nem
-augmentation. A validação batia 100% já na época 1–2 — saturação, não
+**Problema:** o dataset de treino vem de uma única sessão de scan, sem marcação
+fraca ou parcial rotulada, e a rede não tem dropout, weight decay nem
+augmentation. A validação bate 100% já na época 1–2 — saturação, não
 generalização.
 
 **Evidência medida (15/09/2026):** rodando o modelo atual sobre os recortes
@@ -453,7 +368,8 @@ deixa de vir de um lote único (620 recortes, 7-8 folhas de simulado tranquilo).
 Passa a vir de dois contextos de aplicação distintos:
 
 - **Dia a dia** — o uso real do sistema, simulados semanais do CASD, sem
-  pressão de tempo de vestibular. 2 lotes novos, 335 folhas (215 + 120).
+  pressão de tempo de vestibular. 2 lotes novos, 345 folhas (215 + 130),
+  nas pastas locais `215-simu` e `extra`.
 - **Vestibular** — aplicação de alta pressão, disponível em volume (1.250
   folhas em 6 corredores). Usado como fonte auxiliar, não como maioria do
   treino, para não deslocar o modelo para longe do cenário de uso real.
@@ -464,9 +380,14 @@ real é o mais difícil, não o mais fácil. Isso inverte a lógica inicial de
 "usar vestibular para ensinar o caso difícil": o dia a dia já é essa fonte.
 
 **Proporção de treino:** 70% dia a dia / 30% vestibular, por número de folhas
-— 80 folhas de dia a dia e 27 de vestibular (de pools de 335 e ~144
+— 80 folhas de dia a dia e 27 de vestibular (de pools de 345 e ~144
 disponíveis, respectivamente; o restante fica de fora do treino, disponível
 para ampliar depois se necessário).
+
+**Corredores do vestibular:** `C1`, `C2`, `E1`, `E2`, `G1`, `G2`. O corredor
+`G2` (138 provas) é o Teste B (ver abaixo) e por isso fica **fora** do pool
+elegível para o sorteio de treino/validação — os ~144 disponíveis vêm dos
+outros cinco.
 
 **Método de amostragem, para não introduzir viés de curadoria manual:**
 
@@ -514,8 +435,10 @@ como teste. Passam a existir dois testes com propósitos diferentes:
 
 - **Teste A (uso real):** folhas de dia a dia não sorteadas para
   treino/validação.
-- **Teste B (robustez a marcação sob pressão):** 1 corredor inteiro de
-  vestibular, retido, nunca visto.
+- **Teste B (robustez a marcação sob pressão):** corredor `G2` (138 provas),
+  retido por inteiro, nunca visto em treino ou validação — escolhido pelo
+  usuário em 19/09/2026, sem critério técnico além de ser um conjunto
+  novo/intocado; 138 folhas é volume mais que suficiente para essa função.
 
 **Ferramentas de apoio, divididas por natureza da tarefa:**
 
@@ -584,6 +507,46 @@ não só marcas escuras e óbvias, dentro do que a amostragem por questão intei
 
 **Fazer o item 17 antes de começar:** enquanto `treinar.py` sobrescrever o arquivo
 de produção, comparar modelos nesta fase é pedir para perder a referência.
+
+**Ferramental de teste construído e rodado uma vez (22/09/2026) — sobre o modelo
+RETREINADO (`cnn_bolhas.pth`), não o antigo.** Cinco scripts novos em
+`corretor/treino/` (`sortear_amostra_teste.py`, `preparar_recortes_teste.py`,
+`gerar_planilha_anotacao_teste.py`, `inferir_probabilidades_teste.py`,
+`calibrar_margem_teste.py`) implementam de ponta a ponta o sorteio do Teste
+A+B, a anotação cega e a varredura de margem descritas nesta seção. Rodado uma
+vez, com as 200 questões da amostra de teste anotadas à mão e o `cnn_bolhas.pth`
+atual: 200/200 questões batem entre a letra de menor probabilidade e a
+anotação, margem real mínima observada de 0,352 entre as 200 questões, e a
+varredura aponta 0,05 como a menor margem candidata com precisão ≥ 99%.
+Cruzamento conferido linha a linha (chave `arquivo — Qn` idêntica nos dois
+arquivos, sem item órfão).
+
+**Correção de 23/09/2026:** uma versão anterior desta seção afirmava, por
+engano, que o teste tinha rodado sobre o modelo antigo saturado. Não é o caso —
+`cnn_bolhas.pth` é o modelo retreinado do passo 3 (o antigo foi renomeado para
+`cnn_bolhas_old.pth`), confirmado pelo commit `752a1c3` ("Reforca robustez do
+modelo contra marcacao fraca via novo modelo em novo dataset", mesclado em
+20/09/2026) batendo exatamente com a data de renomeação dos dois arquivos de
+pesos. Isso muda a leitura do resultado: a margem mínima observada de 0,352 e a
+ausência de qualquer caso intermediário nesta amostra de 200 questões já são um
+dado sobre o modelo retreinado, não um artefato trivial de um modelo saturado.
+
+**Ainda assim, este número não deve ser tratado como calibração definitiva sem
+revisão:** a amostra de teste (200 questões) é pequena perto do volume real de
+correção, e não se sabe ainda se ela contém a mesma proporção de marcação
+fraca/ambígua que o dataset de treino do passo 7.0 foi desenhado para capturar.
+**Serve como validação de que o ferramental de teste funciona sem bug e como
+primeira medição real sobre o modelo retreinado**, não como a margem de
+produção final — quanto confiar neste número é decisão do usuário.
+
+**Margem provisória decidida (22/09/2026):** 0,055 — 10% de folga sobre a
+margem estatisticamente suficiente medida (0,05), decisão do usuário. Como
+nenhuma das 200 questões desta amostra tem margem real abaixo de 0,35, essa
+folga de 10% não é sustentada por nenhum caso observado aqui — é reserva
+deliberada contra um caso futuro perto do limiar, que esta amostra não tem
+como conter. Constante ainda não aplicada em código de produção.
+**Recalibrar se o modelo for retreinado de novo**, rodando outra vez
+`calibrar_margem_teste.py` com os pesos novos.
 
 ---
 
@@ -666,6 +629,20 @@ Custo: uma linha.
 
 ---
 
+## 11. Nota final sem número escrito à mão
+
+**Problema:** `gerar_excel.py:76` decide o multiplicador com
+`2 if NUM_QUESTOES == 50 else (100 / 60)`. Os dois casos existentes são a mesma
+conta, e qualquer terceiro caso cai no `else` e sai errado sem avisar — numa
+aplicação de 45 questões (o cenário do item 6), a nota máxima viraria 75.
+
+**Solução:** `nota = acertos * 100 / NUM_QUESTOES`, sem condicional.
+
+**Justificativa:** troca dois números escritos à mão por uma fórmula que vale para
+qualquer prova. **Precisa estar feito antes do item 6.**
+
+---
+
 ## 12. Alerta de inscrição duplicada na planilha de revisão
 
 **Problema:** duas folhas lidas com o mesmo número de inscrição é o sintoma mais
@@ -720,6 +697,37 @@ deixa o operador saber o que está olhando antes de abrir a imagem.
 **Atenção ao fundir:** a função de decisão compartilhada é a mesma que o item 7.1
 vai trocar por uma regra de margem. Fundir primeiro significa trocar a regra em um
 lugar só depois.
+
+---
+
+## 14. Matérias configuráveis por faixa ou por lista de questões
+
+**Problema:** a estrutura de matérias hoje é uma faixa fixa por template
+(`CONFIG_SIMULADOS[...]["MATERIAS"]`, com `inicio` e `fim`), e a lista de matérias
+que entra na nota está escrita à mão dentro do relatório
+(`gerar_excel.py:68-71`, `if SIMULADO_ATIVO == "CASDINHO"`). Com número de
+questões variável (item 6), isso não fecha: uma prova de 30 questões não tem como
+saber quais são de Português e quais de Matemática.
+
+**Solução:**
+
+1. As provas com padrão fixo continuam como estão — CASDINHO (15 Português, 15
+   Matemática, …) e SEMI seguem definidos no `CONFIG_SIMULADOS`, sem o usuário
+   precisar preencher nada.
+2. Quando o número de questões for variável, o usuário escolhe a faixa de cada
+   matéria. Dois casos que precisam funcionar:
+   - uma prova de 15 questões, todas marcadas como Matemática;
+   - uma prova de 30 questões, as 15 primeiras Português e as 15 últimas
+     Matemática.
+3. A estrutura aceita tanto **faixa** (`início`–`fim`) quanto **lista de questões
+   específicas**, para o caso de uma matéria não ocupar posições contíguas.
+4. A lista de matérias que compõe a nota sai do código e vira chave do config.
+   Hoje o CASDINHO soma Português + Matemática + CH + CN, ignorando História,
+   Geografia, Biologia e Química, que são subdivisões já contadas dentro de CH e
+   CN — essa regra só existe escrita dentro do `if`, e some se alguém acrescentar
+   uma matéria ao config sem mexer no relatório.
+
+**Entra junto com o item 6.** Um não funciona sem o outro.
 
 ---
 
@@ -859,6 +867,94 @@ real e está anotado, mas não produz nota errada nem atrapalha o fluxo normal.
 
 ---
 
+## 20. Separar código do modelo (M) do código confirmado pelo operador  ✅ CONCLUÍDO (23/09/2026)
+
+**Problema:** `NULA`/`NULA(MARCADAS>1)` e `BRANCO`/`EM BRANCO` eram a mesma
+categoria (dupla marcação / em branco) escrita de duas formas — uma curta,
+usada como valor de dropdown pelo operador na revisão e na anotação de treino,
+e uma longa, que o modelo escrevia automaticamente e que `aplicar_revisao.py`
+também usava como destino final ao converter o que o operador digitou. Isso
+colapsava as duas origens (leitura automática vs. confirmação humana) no mesmo
+texto, sem deixar rastro de qual foi qual.
+
+**Solução:** dois pares de códigos, com sufixo `M` = decisão automática do
+modelo, sem `M` = confirmado por humano na revisão:
+
+- `BRANCOM` / `MULTM` — o que `padrao_da_questao()` (`inferir_simulado.py`)
+  devolve direto, sem revisão.
+- `BRANCO` / `MULT` — o que o operador digita no dropdown da aba Correção
+  (`gerar_planilha_revisao.py`), e que `aplicar_revisao.py` agora grava tal
+  como está, sem converter para o código do modelo.
+
+Na planilha de anotação de treino/teste (`gerar_planilha_anotacao.py`,
+`aplicar_anotacao.py`, `calibrar_margem_teste.py`) não existe variante do
+modelo — é sempre anotação humana — então lá o código correto é `MULT`, nunca
+`MULTM`.
+
+**Arquivos alterados:** `corretor/inferencia/inferir_simulado.py`,
+`corretor/inferencia/inferir_completo.py`, `corretor/treino/conferir_folha.py`,
+`corretor/revisao/aplicar_revisao.py`,
+`corretor/revisao/gerar_planilha_anotacao.py`,
+`corretor/revisao/aplicar_anotacao.py`, `corretor/treino/calibrar_margem_teste.py`,
+`corretor/revisao/gerar_planilha_revisao.py` (dropdown e textos de motivo).
+
+**Efeito colateral útil:** dá para saber, só pelo texto final na planilha, se
+um item de "em branco"/"dupla marcação" foi revisado por humano (sem `M`) ou
+ficou só na leitura automática (com `M`) — sem precisar de coluna extra.
+
+---
+
+## 21. Link de scan completo para inscrição ambígua na planilha de revisão  ✅ CONCLUÍDO (23/09/2026)
+
+**Problema:** na aba Correção, um dígito de inscrição ambíguo (hoje `?` cobre
+tanto "em branco" quanto "dupla marcação", sem distinção) só mostra a tira com
+os 10 recortes de dígito daquela posição — insuficiente quando a posição está
+genuinamente em branco, sem nada para o operador comparar.
+
+**Solução:** nova coluna "Scan Original" (F) na aba Correção, preenchida só
+nas linhas de inscrição com esse motivo, com link direto para o scan completo
+no Drive (mesmo padrão de URL já usado para imagem corrompida). Vale tanto
+para o caso de branco quanto para dupla marcação, já que hoje as duas causas
+não são distinguíveis.
+
+**Arquivo alterado:** `corretor/revisao/gerar_planilha_revisao.py`.
+
+---
+
+## 22. Destaque vermelho no Relatório Sintético dos Testes  ✅ CONCLUÍDO (23/09/2026)
+
+**Problema:** nenhum sinal visual aponta quando uma alternativa incorreta
+atrai mais marcação que a própria alternativa correta — sintoma de questão
+ambígua ou gabarito errado.
+
+**Solução:** em `gerar_excel.py`, comparação por questão (ainda com os
+percentuais em número, antes da formatação como texto) entre cada alternativa
+incorreta e a alternativa correta da mesma linha; quando a incorreta supera a
+correta, a célula recebe fundo vermelho. Questões anuladas (gabarito `X`) não
+têm comparação, por não existir "a alternativa certa" para servir de
+referência.
+
+**Arquivo alterado:** `corretor/relatorio/gerar_excel.py`.
+
+---
+
+## 23. Modo escuro nas planilhas de revisão e final  ✅ CONCLUÍDO (23/09/2026)
+
+**Problema/pedido:** fundo branco cansa a vista em sessões longas de revisão e
+leitura de resultado.
+
+**Solução:** fundo preto e texto branco em todas as abas de `gerar_excel.py`
+(a planilha final) e de `gerar_planilha_revisao.py` (a intermediária). Duas
+exceções deliberadas na planilha de revisão, para não perder sinalização
+útil: as células de input do operador ficam em cinza escuro (`#262626`) em vez
+de preto puro, e o banner de alerta de folhas descartadas manteve borda
+amarela. A planilha final não tem exceção — é preto liso em tudo.
+
+**Arquivos alterados:** `corretor/relatorio/gerar_excel.py`,
+`corretor/revisao/gerar_planilha_revisao.py`.
+
+---
+
 ## EXTRA — tirar o disco do caminho entre recortar e inferir
 
 *Registrado como extra, depois de tudo. Avaliação do usuário (18/09/2026): a
@@ -928,18 +1024,24 @@ concluídos são as originais, não o tempo gasto.
 | 3. Anulação de questão | 0,25h | ✅ Concluído |
 | 4. Auditoria de falhas silenciosas | 1–1,5h | ✅ Concluído |
 | 5. Checkpoint de correção manual | 1–1,5h | ✅ Concluído |
-| 6/11/14. Prova de nº de questões variável (nota + matérias) | 2,1–3,1h | Itens 6, 11 e 14 aglutinados em 20/09/2026; ordem interna: nota → nº de questões + matérias |
-| 7. Robustez do modelo (+ regra relativa) | 6–9h (+2–3h se precisar de augmentation) | 🔶 Parcialmente concluído (20/09/2026) — dataset, dropout/weight decay e Teste B feitos; falta decidir augmentation e a regra de margem (7.1) |
+| 6. Número de questões variável | 1–1,5h | Entra junto com o 14; exige o 11 antes |
+| 7. Robustez do modelo (+ regra relativa) | 6–9h (+2–3h se precisar de augmentation) | ▶️ Próxima frente — limitada por atenção humana na rotulagem |
 | 8. Correção automática de rotação | 3–5h | Único item que exige depurar casos-limite de visão computacional |
 | 9. README, documentação e teste de fumaça | 2–3h | 🔚 Último. Boa parte do conteúdo já está redigida neste plano |
 | 10. Ponto bisserial sem a própria questão | 0,1h | Uma linha |
+| 11. Nota final sem número escrito à mão | 0,1h | Uma linha; antes do item 6 |
 | 12. Alerta de inscrição duplicada | 1,5–2h | Mexe nas duas abas da planilha de revisão |
 | 13. Fundir os dois módulos de inferência | 1,5–2h | Reescrita, não conserto — conferir os dois caminhos depois |
+| 14. Matérias configuráveis | 1–1,5h | Entra junto com o item 6 |
 | 15. Limpeza de resíduos | 0,5h | Nenhum muda comportamento |
 | 16. Apagar o lixo da raiz | 0,1h | Mais a conferência de `scripts/` e `docs/` no `main` |
 | 17. Treino não sobrescreve produção | 0,1h | Antes de começar o item 7 |
 | 18. Limpar a resposta uma vez só | 0,25h | |
 | 19. Import do config com efeito colateral | 0,5h | ⏳ Por último entre os de código |
+| 20. Separar código do modelo (M) do operador | 0,5h | ✅ Concluído (23/09/2026) |
+| 21. Link de scan para inscrição ambígua | 0,25h | ✅ Concluído (23/09/2026) |
+| 22. Destaque vermelho no Relatório Sintético | 0,25h | ✅ Concluído (23/09/2026) |
+| 23. Modo escuro (revisão + final) | 0,5h | ✅ Concluído (23/09/2026) |
 | EXTRA. Tirar o disco do caminho | 3–4h | Não é prioridade — ver a nota no item |
 
 ---
@@ -953,6 +1055,28 @@ três lotes: marcadores entre 9.376 e 10.520, maior não-marcador ~1.400. Os doi
 modelos passaram a usar 5.000, entre os dois grupos. A resolução nunca variou
 (todos 2480×3508) — o que muda é quanto do quadrado preto sobrevive à
 binarização.
+
+**Limiar de marcador de canto convertido para fração de área, independente de
+DPI (23/09/2026).** Um lote de 144 folhas escaneado a 200 dpi (scanner Ricoh
+Aficio MP 7502, que suporta 100/200/300/400/600 dpi) teve 100% das folhas
+descartadas no alinhamento (`apenas_0_cantos_encontrados_minimo_3`). Causa:
+`AREA_MINIMA_MARCADOR` era um valor absoluto em pixels² (5.000), calibrado só
+para scans a 300 dpi (2480×3508 px, ver entrada acima) — a 200 dpi a mesma
+marca física ocupa ~44% da área em pixels, caindo abaixo do limiar. Como o
+alinhamento sempre gera uma tela de saída de tamanho fixo (800×1130,
+independente da resolução do scan) e toda a extração de bolhas downstream
+(`GRADE_RESPOSTAS`/`GRADE_INSCRICAO`) já opera sobre essa tela fixa, bastou
+tornar o limiar de detecção do marcador independente de DPI:
+`AREA_MINIMA_MARCADOR_FRACAO = 5000 / (2480*3508)`, calculado como fração da
+área total da imagem em vez de pixels absolutos — a mesma calibração vale em
+qualquer resolução, porque a área do marcador e a área total da imagem escalam
+juntas com o quadrado do DPI. Dois arquivos alterados: `corretor/config.py`
+(nova constante + troca de `AREA_MINIMA_MARCADOR` por
+`AREA_MINIMA_MARCADOR_FRACAO` nas duas entradas de `CONFIG_SIMULADOS`) e
+`corretor/visao/alinhar_gabarito.py` (limiar calculado em runtime como
+`AREA_MINIMA_MARCADOR_FRACAO * altura * largura`, depois de ler as dimensões
+reais de cada imagem). Nenhuma detecção de DPI nem reamostragem de imagem foi
+necessária — só a mudança de escala fixa para relativa.
 
 **Arquitetura de execução (16/09/2026).** O notebook passou a clonar o código do
 GitHub a cada sessão em vez de lê-lo do Drive, e a gravar a planilha final em
@@ -991,6 +1115,17 @@ atuais. Servem de linha de base para comparar depois do item 7.
 runtime T4 e o código usa CUDA quando disponível, mas o gargalo é o laço que
 processa uma bolha por vez, não o cômputo. Se o Colab negar GPU num dia de pico,
 o sistema roda igual — o que é bom para robustez.
+
+**Calibração de margem sobre o modelo retreinado (22/09/2026, corrigido em
+23/09/2026 — ver nota na seção 7.1).** Amostra de teste: 200 questões (Teste A +
+Teste B, nunca vistas em treino), anotação cega completa. Cruzamento
+`probabilidades_teste.csv` × `planilha_anotacao_teste.xlsx`: 200/200 acerto
+entre a bolha de menor probabilidade e a anotação, margem real mínima de 0,352
+entre as 200 questões, zero NULA, zero falha de leitura. Varredura de margens
+candidatas aponta 0,05 como suficiente para precisão ≥ 99% — resultado do
+modelo retreinado (`cnn_bolhas.pth`, confirmado via commit `752a1c3` de
+20/09/2026), não do modelo antigo. Margem provisória com folga de 10%:
+**0,055** — recalibrar se o modelo for retreinado de novo.
 
 **Inversão das probabilidades — a confusão mais fácil deste código:** o
 `ImageFolder` ordena as classes alfabeticamente, então `preenchida=0` e

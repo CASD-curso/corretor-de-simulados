@@ -10,12 +10,18 @@ import openpyxl
 
 from corretor.config import NUM_DIGITOS_INSCRICAO, NUM_QUESTOES
 
-MAPA_QUESTAO = {"BRANCO": "EM BRANCO", "NULA": "NULA(MARCADAS>1)"}
-
 
 def _normalizar_resposta_questao(valor):
-    valor = valor.strip().upper()
-    return MAPA_QUESTAO.get(valor, valor)
+    """
+    Só normaliza caixa e espaços. Antes desta função também convertia o
+    código curto do operador ('BRANCO'/'NULA') para o código longo do
+    modelo ('EM BRANCO'/'NULA(MARCADAS>1)') -- essa conversão não existe
+    mais porque agora os dois lados têm nomes distintos por construção:
+    o modelo grava 'BRANCOM'/'MULTM' (sufixo M = decisão automática, sem
+    revisão) e o operador digita 'BRANCO'/'MULT' (sem M = confirmado por
+    humano). Cada um já é o valor final por si só, sem precisar de mapa.
+    """
+    return valor.strip().upper()
 
 
 def _normalizar_digito_inscricao(valor, simulado, campo):
@@ -42,12 +48,12 @@ def _normalizar_digito_inscricao(valor, simulado, campo):
 
 def _recalcular_link_revisao(linha, simulados_com_pendencia_restante):
     """
-    Depois da correcao, "EM BRANCO" ou "NULA(MARCADAS>1)" podem ser
-    respostas legitimas que o operador CONFIRMOU ao revisar -- nao sao mais
-    erro, so porque o texto continua o mesmo. O que decide se a linha ainda
-    precisa de atencao e se ela tem algum item que ficou sem revisao
-    nenhuma (Corrigido em branco na aba Correcao, ou nem reescaneada nem
-    transcrita no Checkup) -- nao o valor final em si.
+    Depois da correcao, "BRANCOM" ou "MULTM" que o operador reescreveu como
+    "BRANCO"/"MULT" sao respostas legitimas que ele CONFIRMOU ao revisar --
+    o proprio texto final ja denuncia isso (perdeu o sufixo M). O que
+    decide se a linha ainda precisa de atencao e se ela tem algum item que
+    ficou sem revisao nenhuma (Corrigido em branco na aba Correcao, ou nem
+    reescaneada nem transcrita no Checkup) -- nao o valor final em si.
 
     'Não' em branco (nunca chegou a passar pela extracao) e "?"/"NAO_LIDO"
     persistentes continuam sinalizando erro como rede de seguranca, pro
@@ -139,7 +145,11 @@ def aplicar_revisao(caminho_planilha_revisada, linhas_originais):
                 "Bolhas_Ilegiveis": "",
             }
             for i, letra in enumerate(respostas_manual):
-                nova_linha[f"Q{i + 1}"] = letra if letra in "ABCDE" else "EM BRANCO"
+                # "BRANCO" (sem M) porque essa linha inteira já é
+                # transcrição manual do operador olhando o scan -- não
+                # existe leitura automática do modelo aqui para ter o
+                # sufixo M.
+                nova_linha[f"Q{i + 1}"] = letra if letra in "ABCDE" else "BRANCO"
             por_simulado[simulado] = nova_linha
 
     if pendentes:

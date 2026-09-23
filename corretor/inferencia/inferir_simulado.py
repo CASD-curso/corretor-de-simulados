@@ -17,17 +17,21 @@ PADRAO_ARQUIVO = re.compile(r"^(.+)_Q(\d+)_([A-E])\.png$", re.IGNORECASE)
 
 
 def padrao_da_questao(probs_por_alt, limiar_maximo=LIMIAR_MAXIMO, limiar_dupla=LIMIAR_DUPLA):
-    """Retorna a alternativa marcada (A-E), 'EM BRANCO' ou 'NULA(MARCADAS>1)' usando lógica relativa."""
-    
+    """Retorna a alternativa marcada (A-E), 'BRANCOM' ou 'MULTM' usando lógica relativa.
+
+    O sufixo M marca que a decisão veio direto do modelo, sem revisão
+    humana ainda -- ver corretor.revisao.aplicar_revisao, que grava
+    'BRANCO'/'MULT' (sem M) quando o operador confirma manualmente."""
+
     bolhas_ordenadas = sorted(probs_por_alt.items(), key=lambda item: item[1])
-    
+
     melhor_alt, menor_prob = bolhas_ordenadas[0]
     segunda_alt, segunda_prob = bolhas_ordenadas[1]
-    
+
     if menor_prob > limiar_maximo:
-        return "EM BRANCO"
+        return "BRANCOM"
     elif segunda_prob < limiar_dupla:
-        return "NULA(MARCADAS>1)"
+        return "MULTM"
     else:
         return melhor_alt
 
@@ -77,7 +81,7 @@ def inferir_simulados(pasta_recortes=None, csv_saida=None, exportar_csv=True):
         for q in range(1, NUM_QUESTOES + 1):
             probs = {}
             if q not in questoes:
-                respostas.append("EM BRANCO")
+                respostas.append("BRANCOM")
                 continue
 
             questao_ilegivel = False

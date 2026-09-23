@@ -80,7 +80,10 @@ def _montar_itens(linhas: list[dict]) -> list[dict]:
             itens.append({
                 "rotulo": f"{folha} — Q{num_questao}",
                 "crops": crops,
-                "valores_aceitos": ["A", "B", "C", "D", "E", "BRANCO", "NULA"],
+                # Anotação é sempre humana aqui -- nunca existe "MULTM" ou
+                # "BRANCOM" (variante do modelo) numa planilha de
+                # anotação, então os códigos ficam sem sufixo M.
+                "valores_aceitos": ["A", "B", "C", "D", "E", "BRANCO", "MULT"],
             })
         if linha["sorteia_inscricao"]:
             pos = linha["posicao_inscricao"]
