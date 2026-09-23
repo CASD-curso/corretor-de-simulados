@@ -80,11 +80,17 @@ def alinhar_gabarito(caminho_imagem):
     """
     # Pega as configurações do simulado ativo atual (CASDINHO ou SEMI)
     config_atual = CONFIG_SIMULADOS.get(SIMULADO_ATIVO, CONFIG_SIMULADOS["CASDINHO"])
-    params_alinhamento = config_atual.get("ALINHAMENTO", {"AREA_MINIMA_MARCADOR": 5000, "MARGEM_FRACAO": 0.30})
+    params_alinhamento = config_atual.get(
+        "ALINHAMENTO", {"AREA_MINIMA_MARCADOR_FRACAO": 5000 / (2480 * 3508), "MARGEM_FRACAO": 0.30}
+    )
 
     LARGURA_ALINHADA = 800
     ALTURA_ALINHADA = 1130
-    AREA_MINIMA_MARCADOR = params_alinhamento["AREA_MINIMA_MARCADOR"]
+    # Fração da área total da imagem, não pixels absolutos -- assim o limiar
+    # acompanha a resolução real do scan (100/200/300/400/600 dpi, achado de
+    # 23/09/2026: um lote a 200 dpi teve 100% das folhas descartadas porque
+    # o limiar antigo, fixo em pixels, foi calibrado só para 300 dpi).
+    AREA_MINIMA_MARCADOR_FRACAO = params_alinhamento["AREA_MINIMA_MARCADOR_FRACAO"]
     MARGEM_FRACAO = params_alinhamento["MARGEM_FRACAO"]
     # Faixa bem fina na borda externa da folha que é ignorada antes de
     # procurar marcador -- existe pra um borrão ou mancha exatamente na
@@ -135,10 +141,13 @@ def alinhar_gabarito(caminho_imagem):
 
     marcadores = []
     margem_x, margem_y = largura * MARGEM_FRACAO, altura * MARGEM_FRACAO
+    # Calculado aqui (não antes) porque depende de altura/largura reais desta
+    # imagem, lidas linhas acima -- é o que torna o limiar independente do DPI.
+    area_minima_marcador = AREA_MINIMA_MARCADOR_FRACAO * altura * largura
 
     for contorno in contornos:
         area = cv2.contourArea(contorno)
-        if area < AREA_MINIMA_MARCADOR:
+        if area < area_minima_marcador:
             continue
         
         # Opcional: filtrar proporção para garantir que são quadrados próximos de marcadores

@@ -78,6 +78,19 @@ PLANILHA_ANOTACAO_PATH = OUTPUTS_DIR / "planilha_anotacao.xlsx"
 AMOSTRA_TESTE_CSV_PATH = OUTPUTS_DIR / "amostra_teste.csv"
 
 # =====================================================================
+# LIMIAR DE DETECCAO DE MARCADOR, INDEPENDENTE DE DPI (achado de
+# 23/09/2026) -- AREA_MINIMA_MARCADOR era um numero fixo de pixels,
+# calibrado so a 300 dpi (2480x3508 px; ver "Correcoes fora do plano" no
+# plano de alteracoes). Um lote escaneado a 200 dpi teve as 144 folhas
+# descartadas: a 200 dpi a mesma marca fisica cobre somente ~44% da area em
+# pixels, caindo abaixo do limiar. Expressa como fracao da area total da
+# imagem (nao pixels absolutos), a mesma calibracao vale em qualquer
+# resolucao do scanner (100/200/300/400/600 dpi), porque area em pixels e
+# area total da imagem escalam juntas com o quadrado do DPI.
+# =====================================================================
+AREA_MINIMA_MARCADOR_FRACAO = 5000 / (2480 * 3508)
+
+# =====================================================================
 # DICIONÁRIO DINÂMICO DE SIMULADOS
 # =====================================================================
 CONFIG_SIMULADOS = {
@@ -94,7 +107,7 @@ CONFIG_SIMULADOS = {
             "CN": {"inicio": 41, "fim": 50}
         },
         "ALINHAMENTO": {
-            "AREA_MINIMA_MARCADOR": 5000,
+            "AREA_MINIMA_MARCADOR_FRACAO": AREA_MINIMA_MARCADOR_FRACAO,
             "MARGEM_FRACAO": 0.20,         # Janela de busca de 30% nas bordas
             # Faixa cortada de cada lado da imagem ANTES de procurar
             # marcador, pra borrao/mancha bem na borda da folha nem entrar
@@ -131,7 +144,7 @@ CONFIG_SIMULADOS = {
             "Linguagens": {"inicio": 46, "fim": 60}
         },
         "ALINHAMENTO": {
-            "AREA_MINIMA_MARCADOR": 5000,
+            "AREA_MINIMA_MARCADOR_FRACAO": AREA_MINIMA_MARCADOR_FRACAO,
             "MARGEM_FRACAO": 0.22,         # Janela mais ampla para evitar perda de cantos
             "MARGEM_CORTE_BORDA_FRACAO": 0.01,
         },
