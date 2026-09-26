@@ -10,7 +10,7 @@ Uso, a partir da raiz do repositório:
 from pathlib import Path
 
 from corretor import config
-from corretor.inferencia.inferir_simulado import PADRAO_ARQUIVO, padrao_da_questao
+from corretor.inferencia.inferir_simulado_e_inscricao import PADRAO_BOLHA, decidir
 from corretor.inferencia.modelo_bolhas import carregar_modelo, obter_device, prob_bolha_preenchida
 
 # Nome da folha a conferir -- SEM extensão, igual ao que aparece no nome
@@ -30,7 +30,7 @@ def main():
 
     por_questao = {}
     for arq in arquivos:
-        m = PADRAO_ARQUIVO.match(arq.name)
+        m = PADRAO_BOLHA.match(arq.name)
         if not m:
             continue
         _, num_q, alt = m.group(1), int(m.group(2)), m.group(3).upper()
@@ -52,7 +52,7 @@ def main():
                 continue
             prob, _ = prob_bolha_preenchida(modelo, caminho, device)
             probs[alt] = prob
-        respostas.append(padrao_da_questao(probs))
+        respostas.append(decidir(probs))
 
     print(f"Folha: {NOME_FOLHA}")
     print("".join(r if r not in ("BRANCOM", "MULTM") else "?" for r in respostas))

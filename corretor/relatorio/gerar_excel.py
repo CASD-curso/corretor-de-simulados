@@ -5,6 +5,10 @@ from pathlib import Path
 from corretor.config import OUTPUTS_DIR, LOCAL_DIR, ESTRUTURA_MATERIAS, NUM_QUESTOES, NOME_SIMULADO, SIMULADO_ATIVO
 from corretor.inferencia.inferir_completo import gerar_planilha_unificada
 
+# Índice (0-idx) da última coluna que uma aba do Excel pode ter: XFD.
+ULTIMA_COLUNA_EXCEL = 16383
+
+
 def gerar_excel_final(dados_brutos=None):
     """
     dados_brutos: quando informado (lista de dicts), é o resultado de
@@ -127,9 +131,15 @@ def gerar_excel_final(dados_brutos=None):
         sup_pct = df_sup[col_q].mean() if not df_sup.empty else 0
         inf_pct = df_inf[col_q].mean() if not df_inf.empty else 0
 
-        # Ponto Bisserial
-        if df_acertos[col_q].std() > 0 and notas.std() > 0:
-            bisserial = df_acertos[col_q].corr(notas)
+        # Ponto Bisserial corrigido (item 10): correlaciona o acerto da
+        # questão com a nota nas OUTRAS questões, não com o total. O total
+        # inclui a própria questão, e isso inflava o índice sempre para
+        # cima -- quem acertou a questão ganhava 1 ponto no total só por
+        # tê-la acertado. .corr() é Pearson, que dá o mesmo valor que o
+        # ponto bisserial quando uma das variáveis só vale 0 ou 1.
+        nota_sem_a_questao = notas - df_acertos[col_q]
+        if df_acertos[col_q].std() > 0 and nota_sem_a_questao.std() > 0:
+            bisserial = df_acertos[col_q].corr(nota_sem_a_questao)
         else:
             bisserial = 0.0
 
@@ -186,7 +196,10 @@ def gerar_excel_final(dados_brutos=None):
         # coluna inteira depois, com set_column(): o xlsxwriter só aplica
         # o formato da coluna às células que ainda não têm um formato
         # próprio, então não sobrescreve nada que a gente grave explícito
-        # em seguida (o cabeçalho em negrito, e o destaque vermelho). ----
+        # em seguida (o cabeçalho em negrito, e o destaque vermelho).
+        # Todas as colunas da aba (A até XFD, a última que o Excel
+        # permite) recebem o fundo preto, não só as que têm dado -- senão
+        # a área vazia em volta da tabela fica branca (26/09/2026). ----
         workbook = writer.book
         fmt_dark = workbook.add_format({"bg_color": "#000000", "font_color": "#FFFFFF"})
         fmt_dark_header = workbook.add_format({
@@ -208,6 +221,7 @@ def gerar_excel_final(dados_brutos=None):
         for nome_aba, df in abas.items():
             ws = writer.sheets[nome_aba]
             n_colunas = max(len(df.columns) - 1, 0)
+            ws.set_column(0, ULTIMA_COLUNA_EXCEL, None, fmt_dark)
             ws.set_column(0, n_colunas, 16, fmt_dark)
             for col_idx, nome_coluna in enumerate(df.columns):
                 ws.write(0, col_idx, nome_coluna, fmt_dark_header)

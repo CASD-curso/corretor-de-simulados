@@ -5,8 +5,7 @@ from pathlib import Path
 
 # REMOVED RESULTADOS_CSV_PATH from import
 from corretor.config import SIMULADOS_DIR, NUM_QUESTOES, FALHAS_ALINHAMENTO_PATH
-from corretor.inferencia.inferir_inscricao import inferir_inscricoes
-from corretor.inferencia.inferir_simulado import inferir_simulados
+from corretor.inferencia.inferir_simulado_e_inscricao import inferir_inscricoes, inferir_simulados
 
 
 def _ler_falhas_alinhamento():

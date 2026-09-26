@@ -20,7 +20,7 @@ import shutil
 import torch
 
 from corretor import config
-from corretor.inferencia.inferir_simulado import PADRAO_ARQUIVO, padrao_da_questao
+from corretor.inferencia.inferir_simulado_e_inscricao import PADRAO_BOLHA, decidir
 from corretor.inferencia.modelo_bolhas import obter_device, preprocessar
 from corretor.rede.arquitetura_da_rede import CNNBin, CNNBinSemDropout
 from corretor.visao.extracao_em_lote import processar_simulados
@@ -113,12 +113,12 @@ def calcular_metricas(respostas_por_simulado: dict, gabarito: str) -> dict:
 
 def inferir_com_classe(classe_modelo, caminho_pesos: Path) -> dict:
     """
-    Réplica de inferir_simulados() (inferir_simulado.py), mas recebendo a
+    Réplica de inferir_simulados() (inferir_simulado_e_inscricao.py), mas recebendo a
     CLASSE do modelo e o CAMINHO dos pesos como parâmetro, em vez de usar
     CNNBin + CNN_BOLHAS_PATH fixos -- é o que permite este script carregar
     cnn_bolhas.pth com CNNBin (novo, com Dropout) e cnn_bolhas_old.pth com
     CNNBinSemDropout (antigo, sem Dropout) na mesma execução, sem tocar em
-    modelo_bolhas.py nem em inferir_simulado.py.
+    modelo_bolhas.py nem em inferir_simulado_e_inscricao.py.
     """
     if not caminho_pesos.exists():
         raise FileNotFoundError(f"Pesos não encontrados em '{caminho_pesos}'.")
@@ -129,7 +129,7 @@ def inferir_com_classe(classe_modelo, caminho_pesos: Path) -> dict:
 
     por_simulado = defaultdict(lambda: defaultdict(dict))
     for arq in arquivos:
-        m = PADRAO_ARQUIVO.match(arq.name)
+        m = PADRAO_BOLHA.match(arq.name)
         if not m:
             continue
         nome_sim, num_q, alt = m.group(1), int(m.group(2)), m.group(3).upper()
@@ -164,7 +164,7 @@ def inferir_com_classe(classe_modelo, caminho_pesos: Path) -> dict:
                     saida = modelo(tensor.unsqueeze(0).to(device))
                     probs[alt] = saida.item()
 
-            respostas.append(padrao_da_questao(probs))
+            respostas.append(decidir(probs))
 
         respostas_por_simulado[nome_sim] = respostas
 

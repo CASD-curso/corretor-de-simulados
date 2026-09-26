@@ -5,10 +5,15 @@ originais -- antes do calculo de nota em corretor.relatorio.gerar_excel.
 
 O calculo estatistico nunca deve ler a saida do modelo direto: sempre passa
 por aqui primeiro quando houve revisao (item 5 do plano).
+
+Folha marcada com SIM em "Excluir?" no quadro de inscricoes repetidas do
+Checkup (item 12) sai do resultado, e os itens dela na aba Correcao sao
+ignorados.
 """
 import openpyxl
 
 from corretor.config import NUM_DIGITOS_INSCRICAO, NUM_QUESTOES
+from corretor.revisao.gerar_planilha_revisao import CAMPO_INSCRICAO_REPETIDA, VALOR_EXCLUIR
 
 
 def _normalizar_resposta_questao(valor):
@@ -44,6 +49,51 @@ def _normalizar_digito_inscricao(valor, simulado, campo):
               f"as posições vizinhas.")
         valor = "?"
     return valor
+
+
+def _normalizar_inscricao_inteira(valor, simulado):
+    """
+    Inscricao digitada inteira no item de inscricao repetida. A celula e
+    formatada como texto, mas se o Excel ainda assim guardar numero, volta
+    como float ('2601105.0') e sem o zero da frente -- os dois sao
+    desfeitos aqui. Devolve None se nao sobrar um numero valido.
+    """
+    valor = str(valor).strip()
+    if valor.endswith(".0") and valor[:-2].isdigit():
+        valor = valor[:-2]
+    if valor.isdigit() and len(valor) < NUM_DIGITOS_INSCRICAO:
+        valor = valor.zfill(NUM_DIGITOS_INSCRICAO)
+    if len(valor) != NUM_DIGITOS_INSCRICAO or not valor.isdigit():
+        print(f"AVISO: '{simulado}' -- inscrição corrigida '{valor}' inválida "
+              f"(esperado {NUM_DIGITOS_INSCRICAO} dígitos). Mantida a leitura original.")
+        return None
+    return valor
+
+
+def _ler_excluidos(ck):
+    """
+    Simulados marcados com SIM no quadro de inscricoes repetidas do Checkup.
+    O quadro e achado pelo cabecalho "Inscrição repetida"; as colunas
+    "Simulado N" trazem o nome da folha, e a coluna seguinte a cada uma e o
+    "Excluir?" dela.
+    """
+    excluidos = set()
+    linhas = list(ck.iter_rows(values_only=True))
+    for i, row in enumerate(linhas):
+        if "Inscrição repetida" not in row:
+            continue
+        col_numero = row.index("Inscrição repetida")
+        cols_nome = [j for j, titulo in enumerate(row)
+                     if isinstance(titulo, str) and titulo.startswith("Simulado ")]
+        for dados in linhas[i + 1:]:
+            if col_numero >= len(dados) or not dados[col_numero]:
+                break
+            for j in cols_nome:
+                simulado, excluir = dados[j], dados[j + 1]
+                if simulado and str(excluir or "").strip().upper() == VALOR_EXCLUIR:
+                    excluidos.add(simulado)
+        break
+    return excluidos
 
 
 def _recalcular_link_revisao(linha, simulados_com_pendencia_restante):
@@ -85,6 +135,10 @@ def aplicar_revisao(caminho_planilha_revisada, linhas_originais):
     wb = openpyxl.load_workbook(caminho_planilha_revisada, data_only=True)
     por_simulado = {linha["Simulado"]: dict(linha) for linha in linhas_originais}
 
+    # -------- aba Checkup: folhas excluidas no quadro de repetidas --------
+    # Lido antes da aba Correcao, porque os itens dessas folhas sao ignorados.
+    excluidos = _ler_excluidos(wb["Checkup"]) if "Checkup" in wb.sheetnames else set()
+
     # -------- aba Correção: aplica por (Simulado, Campo) --------
     pendentes = 0
     simulados_com_pendencia_restante = set()
@@ -92,7 +146,17 @@ def aplicar_revisao(caminho_planilha_revisada, linhas_originais):
         cr = wb["Correção"]
         for row in cr.iter_rows(min_row=3, values_only=True):
             simulado, campo, _motivo, corrigido = row[:4]
-            if not simulado:
+            if not simulado or simulado in excluidos:
+                continue
+            if campo == CAMPO_INSCRICAO_REPETIDA:
+                # Em branco aqui e resposta valida: a folha estava certa,
+                # quem foi lida errado e a outra da repeticao.
+                if corrigido is None or str(corrigido).strip() == "":
+                    continue
+                if simulado in por_simulado:
+                    nova = _normalizar_inscricao_inteira(corrigido, simulado)
+                    if nova:
+                        por_simulado[simulado]["Inscricao"] = nova
                 continue
             if corrigido is None or str(corrigido).strip() == "":
                 pendentes += 1
@@ -159,8 +223,13 @@ def aplicar_revisao(caminho_planilha_revisada, linhas_originais):
         print(f"AVISO: {len(nao_resolvidos)} folha(s) descartada(s) no alinhamento ainda sem "
               f"solução (nem reescaneada, nem transcrita): {nao_resolvidos}")
 
+    if excluidos:
+        print(f"{len(excluidos)} simulado(s) excluído(s) no quadro de inscrições repetidas: "
+              f"{sorted(excluidos)}")
+
     linhas_finais = [
         _recalcular_link_revisao(linha, simulados_com_pendencia_restante)
-        for linha in por_simulado.values()
+        for simulado, linha in por_simulado.items()
+        if simulado not in excluidos
     ]
     return linhas_finais
