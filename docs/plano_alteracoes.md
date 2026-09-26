@@ -1,6 +1,6 @@
 # Projeto Leitor de Gabaritos — Plano de Alterações
 
-*Revisão de 19/09/2026. Incorpora o desenho do dataset novo (dia a dia + vestibular) para o retreino do item 7.*
+*Revisão de 26/09/2026. Registra a fusão da inferência, o ponto bisserial corrigido e o alerta de inscrição repetida (itens 10, 12 e 13).*
 
 ## Princípios que guiam este plano
 
@@ -28,9 +28,9 @@ não que ela seja rápida. Otimizar tempo de máquina vem por último.
 
 ## Ordem de implementação
 
-`0 ✅ → 1 ✅ → 2 ⏸️ → 3 ✅ → 4 ✅ → 5 ✅ → 7 → 13 → 12 → 6 + 14 → 8 → 19 → 9 → EXTRA`
+`0 ✅ → 1 ✅ → 2 ⏸️ → 3 ✅ → 4 ✅ → 5 ✅ → 7 → 13 ✅ → 12 ✅ → 6/11/14 → 8 → 19 → 9 → EXTRA`
 
-Os itens **10, 11, 15, 16, 17, 18, 20, 21, 22 e 23** são independentes e custam
+Os itens **10, 15, 16, 17, 18, 20, 21, 22 e 23** são independentes e custam
 minutos cada um — encaixam em qualquer ponto da fila, inclusive como aquecimento
 de uma sessão dedicada a outro item.
 
@@ -289,7 +289,32 @@ de rodar no Windows) e o item 12, que acrescenta a detecção de inscrição dup
 
 ---
 
-## 6. Número de questões variável por aplicação  ⏸️ Depois do item 7
+## 6/11/14. Prova de número de questões variável, com nota e matérias configuráveis  ⏸️ Depois do item 7
+
+**Aglutinado em 20/09/2026** (antes: itens 6, 11 e 14 separados). Os três
+resolvem a mesma raiz — hoje várias partes do código assumem "a prova tem 50 ou
+60 questões, com matérias em faixas fixas por template" — e o plano já os
+sequenciava juntos (11 antes de 6, 6 e 14 entrando junto); a numeração separada
+só espalhava um problema único em três seções.
+
+**Ordem de implementação interna, preservada:** primeiro a fórmula de nota (ex-11,
+abaixo), depois número de questões variável (ex-6) e matérias configuráveis
+(ex-14) juntos — os dois últimos não funcionam um sem o outro.
+
+### Fórmula de nota sem número escrito à mão (ex-item 11)
+
+**Problema:** `gerar_excel.py:76` decide o multiplicador com
+`2 if NUM_QUESTOES == 50 else (100 / 60)`. Os dois casos existentes são a mesma
+conta, e qualquer terceiro caso cai no `else` e sai errado sem avisar — numa
+aplicação de 45 questões (o cenário abaixo), a nota máxima viraria 75.
+
+**Solução:** `nota = acertos * 100 / NUM_QUESTOES`, sem condicional.
+
+**Justificativa:** troca dois números escritos à mão por uma fórmula que vale para
+qualquer prova. **Precisa estar feito antes do restante desta seção.** Custo:
+~0,1h, uma linha.
+
+### Número de questões variável por aplicação (ex-item 6)
 
 **Problema:** a coordenação às vezes aplica uma versão reduzida de uma prova já
 calibrada (o template SEMI suporta 60 questões, mas uma aplicação usou 45). Hoje
@@ -309,23 +334,83 @@ um gabarito de 60 letras, avisar antes de rodar, não depois.
 calibração para cada aplicação reduzida. Criar entrada nova em `CONFIG_SIMULADOS`
 continua sendo o caminho certo só quando a prova é fisicamente diferente, não
 apenas mais curta. E mantém o princípio: o usuário preenche um campo, não edita
-código.
+código. Custo: ~1–1,5h.
 
-**Entra junto com o item 14.** Número de questões variável sem faixa de matérias
-configurável não fecha: uma prova de 30 questões não tem como saber quais são de
-Português e quais de Matemática.
+### Matérias configuráveis por faixa ou por lista de questões (ex-item 14)
 
-**Depende do item 11**, que precisa estar feito antes: enquanto o multiplicador da
-nota for `2 if NUM_QUESTOES == 50 else (100/60)`, qualquer número de questões
-diferente de 50 e 60 produz nota errada em silêncio.
+**Problema:** a estrutura de matérias hoje é uma faixa fixa por template
+(`CONFIG_SIMULADOS[...][\"MATERIAS\"]`, com `inicio` e `fim`), e a lista de matérias
+que entra na nota está escrita à mão dentro do relatório
+(`gerar_excel.py:68-71`, `if SIMULADO_ATIVO == \"CASDINHO\"`). Com número de
+questões variável (seção acima), isso não fecha: uma prova de 30 questões não tem
+como saber quais são de Português e quais de Matemática.
+
+**Solução:**
+
+1. As provas com padrão fixo continuam como estão — CASDINHO (15 Português, 15
+   Matemática, …) e SEMI seguem definidos no `CONFIG_SIMULADOS`, sem o usuário
+   precisar preencher nada.
+2. Quando o número de questões for variável, o usuário escolhe a faixa de cada
+   matéria. Dois casos que precisam funcionar:
+   - uma prova de 15 questões, todas marcadas como Matemática;
+   - uma prova de 30 questões, as 15 primeiras Português e as 15 últimas
+     Matemática.
+3. A estrutura aceita tanto **faixa** (`início`–`fim`) quanto **lista de questões
+   específicas**, para o caso de uma matéria não ocupar posições contíguas.
+4. A lista de matérias que compõe a nota sai do código e vira chave do config.
+   Hoje o CASDINHO soma Português + Matemática + CH + CN, ignorando História,
+   Geografia, Biologia e Química, que são subdivisões já contadas dentro de CH e
+   CN — essa regra só existe escrita dentro do `if`, e some se alguém acrescentar
+   uma matéria ao config sem mexer no relatório.
+
+**Justificativa:** sem isso, número de questões variável não tem como saber quais
+matérias compõem a nota. Custo: ~1–1,5h.
 
 ---
 
-## 7. Robustez do modelo contra marcação fraca  ▶️ PRÓXIMA FRENTE
+## 7. Robustez do modelo contra marcação fraca  🔶 PARCIALMENTE CONCLUÍDO (20/09/2026)
 
-**Problema:** o dataset de treino vem de uma única sessão de scan, sem marcação
-fraca ou parcial rotulada, e a rede não tem dropout, weight decay nem
-augmentation. A validação bate 100% já na época 1–2 — saturação, não
+**Progresso desta sessão (20/09/2026):** os passos 1 a 4 da solução abaixo foram
+executados. Dataset novo rotulado conforme a seção 7.0 (224 recortes marcados,
+959 vazios, dois contextos de aplicação, lote antigo de 620 recortes excluído do
+treino e preservado à parte em `dataset/lote1_620/`). `CNNBin` recebeu
+`nn.Dropout(0.3)` antes da camada de decisão, e `treinar.py` passou a usar
+`weight_decay=1e-4` no otimizador Adam — os dois itens do passo 2. Modelo
+treinado do zero (15 épocas), sem augmentation, salvando em arquivo candidato
+(item 17), não em produção.
+
+**Teste B executado e resultado interpretado.** A avaliação contra o corredor
+`G2` (138 folhas, retido desde o sorteio, nunca visto em treino ou validação)
+rodou via `corretor/treino/avaliar_teste_b.py`, comparando o modelo novo e o
+modelo antigo — este último carregado por `CNNBinSemDropout`
+(`corretor/rede/arquitetura_da_rede.py`), uma réplica da arquitetura de antes do
+Dropout criada só para isso, já que o checkpoint antigo não carrega mais na
+classe `CNNBin` atual (o Dropout desloca o índice do `Linear` dentro do
+`Sequential`, de `classifier.1` para `classifier.2`). Resultado: **52,28% de
+acerto contra o gabarito oficial no modelo novo, 50,91% no antigo** — próximos
+entre si, o que já indicava não ser um problema específico de um modelo.
+
+Essa métrica (comparação direta com o gabarito) mistura dois fatores que a
+seção 7.1 já observa que devem ser distinguidos: o aluno errar a questão, e o
+software ler errado o que foi marcado. Para separar os dois, uma folha do
+corredor G2 (`20260901193429379_0001`) foi lida manualmente, questão a questão,
+e comparada com a leitura do software para essa mesma folha — **bateu 100%**.
+Isso descarta erro de leitura (incluindo a hipótese de inversão das
+probabilidades preenchida/vazia) e confirma que o resultado do Teste B reflete
+desempenho real dos alunos na prova, não falha do pipeline.
+
+**Modelo novo promovido para produção** (`pesos/cnn_bolhas.pth`) após essa
+validação; `pesos/cnn_bolhas_old.pth` mantido como backup, agora versionado.
+
+**Pendente dentro deste item:** passo 5 (decidir se precisa de augmentation —
+não avaliado ainda, já que o resultado do Teste B não isola erro de leitura,
+que já foi descartado, do desempenho real, que segue sem comparação com uma
+aplicação anterior da mesma prova) e passo 7 / seção 7.1 (regra de decisão por
+margem, ainda não implementada).
+
+**Problema original:** o dataset de treino vinha de uma única sessão de scan, sem
+marcação fraca ou parcial rotulada, e a rede não tinha dropout, weight decay nem
+augmentation. A validação batia 100% já na época 1–2 — saturação, não
 generalização.
 
 **Evidência medida (15/09/2026):** rodando o modelo atual sobre os recortes
@@ -608,7 +693,11 @@ Vieram de uma leitura completa dos 16 módulos, dos 2 scripts, do notebook, do
 
 ---
 
-## 10. Ponto bisserial sem a própria questão
+## 10. Ponto bisserial sem a própria questão  ✅ CONCLUÍDO (26/09/2026)
+
+Implementado em `gerar_excel.py`: o acerto de cada questão é correlacionado com
+`notas - df_acertos[col_q]` (a nota nas demais questões). Em lote sintético de
+40 alunos, o índice caiu em todas as 50 questões, em média 0,025.
 
 **Problema:** `gerar_excel.py:112` calcula o ponto bisserial correlacionando o
 acerto de cada questão com `Acertos_Totais` — um total que **inclui aquela mesma
@@ -629,21 +718,32 @@ Custo: uma linha.
 
 ---
 
-## 11. Nota final sem número escrito à mão
+## 12. Alerta de inscrição duplicada na planilha de revisão  ✅ CONCLUÍDO (26/09/2026)
 
-**Problema:** `gerar_excel.py:76` decide o multiplicador com
-`2 if NUM_QUESTOES == 50 else (100 / 60)`. Os dois casos existentes são a mesma
-conta, e qualquer terceiro caso cai no `else` e sai errado sem avisar — numa
-aplicação de 45 questões (o cenário do item 6), a nota máxima viraria 75.
+**O que foi construído** (testado em lote real em 26/09/2026):
 
-**Solução:** `nota = acertos * 100 / NUM_QUESTOES`, sem condicional.
+- **Aba Checkup:** contagem de inscrições repetidas na linha A7, e um quadro a
+  partir da coluna E, na altura da lista de pendências: o número repetido na
+  primeira coluna e, na mesma linha, o link de cada folha no Drive com uma
+  célula "Excluir?" (aceita só `SIM`). Acima do quadro, aviso com o passo a
+  passo: excluir a cópia de uma folha escaneada duas vezes; se for outro aluno
+  lido errado, corrigir na aba Correção e voltar para conferir. A coluna
+  "Situação" mostra `✔ Resolvida` quando sobra no máximo uma folha com aquele
+  número (descontando excluídas e inscrições corrigidas para outro número).
+- **Aba Correção:** cada folha repetida ganha um item com campo `Inscricao`
+  (inscrição inteira, 7 dígitos, célula em formato texto). Em branco significa
+  "esta folha estava certa". Coluna G "Situação" marca `EXCLUÍDO` e risca a
+  linha das folhas excluídas no Checkup; o contador do topo não conta esses
+  itens nem os itens `Inscricao`.
+- **`aplicar_revisao.py`:** lê as exclusões antes da aba Correção, ignora os
+  itens das folhas excluídas, aplica a inscrição inteira corrigida e remove as
+  folhas excluídas do resultado final.
 
-**Justificativa:** troca dois números escritos à mão por uma fórmula que vale para
-qualquer prova. **Precisa estar feito antes do item 6.**
+**Limitação conhecida:** a coluna Situação confere só dentro do grupo repetido
+— não detecta uma inscrição corrigida que passe a coincidir com a de outro
+aluno do lote.
 
----
-
-## 12. Alerta de inscrição duplicada na planilha de revisão
+**Redação original:**
 
 **Problema:** duas folhas lidas com o mesmo número de inscrição é o sintoma mais
 provável de erro de leitura da grade de inscrição — e hoje nada aponta. As duas
@@ -672,7 +772,21 @@ problema. Sem essa conferência, a revisão manual não tem como pegar o caso.
 
 ---
 
-## 13. Fundir os dois módulos de inferência
+## 13. Fundir os dois módulos de inferência  ✅ CONCLUÍDO (26/09/2026)
+
+Passo 1 feito: `corretor/inferencia/inferir_simulado_e_inscricao.py` substitui
+`inferir_simulado.py` e `inferir_inscricao.py` (apagados), com uma função de
+decisão única (`decidir`) e um laço comum às duas grades. `inferir_simulados()`
+e `inferir_inscricoes()` mantêm nome, argumentos e retorno. Resultado idêntico
+aos dois módulos antigos em lote sintético, e testado em lote real.
+
+**Passo 2 descartado (decisão de 26/09/2026 — não reabrir):** a inscrição
+continua com `?` tanto para branco quanto para dupla marcação. A planilha final
+não é feita para edição e não recebe coluna nova; o operador ou deixa o `?`
+(o aluno aparece sem estatística) ou consulta a lista interna de inscrições por
+nome do aluno e corrige na aba Correção.
+
+**Redação original:**
 
 **Problema:** `inferir_simulado.py` e `inferir_inscricao.py` são ~80% o mesmo
 código: mesmo padrão de nome de arquivo, mesmo laço, mesmos limiares, mesma
@@ -697,37 +811,6 @@ deixa o operador saber o que está olhando antes de abrir a imagem.
 **Atenção ao fundir:** a função de decisão compartilhada é a mesma que o item 7.1
 vai trocar por uma regra de margem. Fundir primeiro significa trocar a regra em um
 lugar só depois.
-
----
-
-## 14. Matérias configuráveis por faixa ou por lista de questões
-
-**Problema:** a estrutura de matérias hoje é uma faixa fixa por template
-(`CONFIG_SIMULADOS[...]["MATERIAS"]`, com `inicio` e `fim`), e a lista de matérias
-que entra na nota está escrita à mão dentro do relatório
-(`gerar_excel.py:68-71`, `if SIMULADO_ATIVO == "CASDINHO"`). Com número de
-questões variável (item 6), isso não fecha: uma prova de 30 questões não tem como
-saber quais são de Português e quais de Matemática.
-
-**Solução:**
-
-1. As provas com padrão fixo continuam como estão — CASDINHO (15 Português, 15
-   Matemática, …) e SEMI seguem definidos no `CONFIG_SIMULADOS`, sem o usuário
-   precisar preencher nada.
-2. Quando o número de questões for variável, o usuário escolhe a faixa de cada
-   matéria. Dois casos que precisam funcionar:
-   - uma prova de 15 questões, todas marcadas como Matemática;
-   - uma prova de 30 questões, as 15 primeiras Português e as 15 últimas
-     Matemática.
-3. A estrutura aceita tanto **faixa** (`início`–`fim`) quanto **lista de questões
-   específicas**, para o caso de uma matéria não ocupar posições contíguas.
-4. A lista de matérias que compõe a nota sai do código e vira chave do config.
-   Hoje o CASDINHO soma Português + Matemática + CH + CN, ignorando História,
-   Geografia, Biologia e Química, que são subdivisões já contadas dentro de CH e
-   CN — essa regra só existe escrita dentro do `if`, e some se alguém acrescentar
-   uma matéria ao config sem mexer no relatório.
-
-**Entra junto com o item 6.** Um não funciona sem o outro.
 
 ---
 
@@ -953,6 +1036,10 @@ amarela. A planilha final não tem exceção — é preto liso em tudo.
 **Arquivos alterados:** `corretor/relatorio/gerar_excel.py`,
 `corretor/revisao/gerar_planilha_revisao.py`.
 
+**Ampliado em 26/09/2026:** o fundo preto passou a valer para todas as células
+das duas planilhas (colunas A até XFD), não só as que têm conteúdo — antes a
+área vazia em volta das tabelas ficava branca.
+
 ---
 
 ## EXTRA — tirar o disco do caminho entre recortar e inferir
@@ -1024,15 +1111,13 @@ concluídos são as originais, não o tempo gasto.
 | 3. Anulação de questão | 0,25h | ✅ Concluído |
 | 4. Auditoria de falhas silenciosas | 1–1,5h | ✅ Concluído |
 | 5. Checkpoint de correção manual | 1–1,5h | ✅ Concluído |
-| 6. Número de questões variável | 1–1,5h | Entra junto com o 14; exige o 11 antes |
-| 7. Robustez do modelo (+ regra relativa) | 6–9h (+2–3h se precisar de augmentation) | ▶️ Próxima frente — limitada por atenção humana na rotulagem |
+| 6/11/14. Prova de nº de questões variável (nota + matérias) | 2,1–3,1h | Itens 6, 11 e 14 aglutinados em 20/09/2026; ordem interna: nota → nº de questões + matérias |
+| 7. Robustez do modelo (+ regra relativa) | 6–9h (+2–3h se precisar de augmentation) | 🔶 Parcialmente concluído (20/09/2026) — dataset, dropout/weight decay e Teste B feitos; falta decidir augmentation e a regra de margem (7.1) |
 | 8. Correção automática de rotação | 3–5h | Único item que exige depurar casos-limite de visão computacional |
 | 9. README, documentação e teste de fumaça | 2–3h | 🔚 Último. Boa parte do conteúdo já está redigida neste plano |
-| 10. Ponto bisserial sem a própria questão | 0,1h | Uma linha |
-| 11. Nota final sem número escrito à mão | 0,1h | Uma linha; antes do item 6 |
-| 12. Alerta de inscrição duplicada | 1,5–2h | Mexe nas duas abas da planilha de revisão |
-| 13. Fundir os dois módulos de inferência | 1,5–2h | Reescrita, não conserto — conferir os dois caminhos depois |
-| 14. Matérias configuráveis | 1–1,5h | Entra junto com o item 6 |
+| 10. Ponto bisserial sem a própria questão | 0,1h | ✅ Concluído (26/09/2026) |
+| 12. Alerta de inscrição duplicada | 1,5–2h | ✅ Concluído (26/09/2026) |
+| 13. Fundir os dois módulos de inferência | 1,5–2h | ✅ Concluído (26/09/2026) — passo 2 descartado |
 | 15. Limpeza de resíduos | 0,5h | Nenhum muda comportamento |
 | 16. Apagar o lixo da raiz | 0,1h | Mais a conferência de `scripts/` e `docs/` no `main` |
 | 17. Treino não sobrescreve produção | 0,1h | Antes de começar o item 7 |
