@@ -1,6 +1,11 @@
 # Projeto Leitor de Gabaritos — Plano de Alterações
 
-*Revisão de 26/09/2026. Registra a fusão da inferência, o ponto bisserial corrigido e o alerta de inscrição repetida (itens 10, 12 e 13).*
+*Revisão de 26/09/2026. Registra a fusão da inferência, o ponto bisserial corrigido e o alerta de inscrição repetida (itens 10, 12 e 13), e marca como concluídos os itens 2.1, 16 e 17, conferidos direto no código.*
+
+*Revisão de 29/09/2026. O item 6/11/14 passa a cobrir todas as regras de matéria
+e nota no `CONFIG_SIMULADOS` — escala da nota, questão anulada e percentual dos
+grupos, além da lista de matérias e da fórmula que já estavam no escopo — e as
+referências de linha a `gerar_excel.py` foram atualizadas.*
 
 ## Princípios que guiam este plano
 
@@ -34,7 +39,7 @@ Os itens **10, 15, 16, 17, 18, 20, 21, 22 e 23** são independentes e custam
 minutos cada um — encaixam em qualquer ponto da fila, inclusive como aquecimento
 de uma sessão dedicada a outro item.
 
-O item **2** virou o bloco único do modo local e está adiado por inteiro. O item
+O item **2** virou o bloco único do modo local e está adiado (2.1 já concluído; faltam 2.2 e 2.3). O item
 **19** fica por último entre os de código, e o **9** (README) fecha tudo, porque
 documenta o estado final.
 
@@ -147,7 +152,7 @@ uma vez se revogada e misturaria autoria de commits sob uma conta só.
 
 ---
 
-## 2. Modo local — bloco único  ⏸️ ADIADO POR INTEIRO
+## 2. Modo local — bloco único  ⏸️ ADIADO (2.1 ✅; 2.2 e 2.3 pendentes)
 
 **Decisão de 18/09/2026:** tudo que diz respeito a rodar fora do Colab passa a
 viver neste item só. Nada aqui é feito antes de o modo local ser organizado como
@@ -158,7 +163,10 @@ O que é "modo local": rodar por `scripts/rodar_correcao.py`, na máquina, sem
 Drive e sem notebook. Existe como redundância — se o Colab ou o Drive caírem no
 dia do simulado, o sistema precisa ter por onde rodar.
 
-### 2.1 — Configuração de máquina separada da institucional
+### 2.1 — Configuração de máquina separada da institucional  ✅ CONCLUÍDO (verificado no código em 26/09/2026)
+
+`config.py` importa `corretor/config_local.py` no fim do arquivo, se existir;
+`config_local.exemplo.py` está versionado e o `config_local.py` real, não.
 
 **Problema:** não há como um segundo desenvolvedor apontar os caminhos para outro
 lugar sem alterar arquivo versionado. Hoje o fallback usa `data/` do próprio
@@ -303,12 +311,14 @@ abaixo), depois número de questões variável (ex-6) e matérias configuráveis
 
 ### Fórmula de nota sem número escrito à mão (ex-item 11)
 
-**Problema:** `gerar_excel.py:76` decide o multiplicador com
+**Problema:** `gerar_excel.py:80` decide o multiplicador com
 `2 if NUM_QUESTOES == 50 else (100 / 60)`. Os dois casos existentes são a mesma
 conta, e qualquer terceiro caso cai no `else` e sai errado sem avisar — numa
 aplicação de 45 questões (o cenário abaixo), a nota máxima viraria 75.
 
-**Solução:** `nota = acertos * 100 / NUM_QUESTOES`, sem condicional.
+**Solução:** `nota = acertos * NOTA_MAXIMA / NUM_QUESTOES`, sem condicional,
+com `NOTA_MAXIMA` lido do `CONFIG_SIMULADOS` (100 nas duas provas atuais; ver o
+item 5 da seção de matérias configuráveis, abaixo).
 
 **Justificativa:** troca dois números escritos à mão por uma fórmula que vale para
 qualquer prova. **Precisa estar feito antes do restante desta seção.** Custo:
@@ -341,7 +351,7 @@ código. Custo: ~1–1,5h.
 **Problema:** a estrutura de matérias hoje é uma faixa fixa por template
 (`CONFIG_SIMULADOS[...][\"MATERIAS\"]`, com `inicio` e `fim`), e a lista de matérias
 que entra na nota está escrita à mão dentro do relatório
-(`gerar_excel.py:68-71`, `if SIMULADO_ATIVO == \"CASDINHO\"`). Com número de
+(`gerar_excel.py:72-75`, `if SIMULADO_ATIVO == \"CASDINHO\"`). Com número de
 questões variável (seção acima), isso não fecha: uma prova de 30 questões não tem
 como saber quais são de Português e quais de Matemática.
 
@@ -363,8 +373,28 @@ como saber quais são de Português e quais de Matemática.
    CN — essa regra só existe escrita dentro do `if`, e some se alguém acrescentar
    uma matéria ao config sem mexer no relatório.
 
+5. **Toda regra de matéria e nota mora no `CONFIG_SIMULADOS`; o relatório só
+   lê.** Além da lista do item 4, há mais três regras escritas dentro de
+   `gerar_excel.py` que saem do código. Nenhuma muda o comportamento de hoje —
+   só muda onde a regra mora:
+   - **Escala da nota.** O `100` da fórmula (seção acima) vira a chave
+     `NOTA_MAXIMA`, com valor 100 nas duas provas atuais.
+   - **Questão anulada.** Hoje o laço de correção compara
+     `resposta_correta == 'X'` e dá acerto a todos os alunos (item 3, já
+     concluído). O símbolo e o tratamento ("conta como acerto para todos")
+     viram chaves do config, em vez de ficarem dentro do laço.
+   - **Grupos superior e inferior.** O `27` de
+     `np.percentile(notas, 100 - 27)` vira constante nomeada no `config.py`.
+     Esta é global, não por prova.
+6. **Critério de pronto:** nenhum nome de prova (`CASDINHO`, `SEMI`), nome de
+   matéria ou número de questões escrito à mão em `corretor/relatorio/`.
+   Conferir com uma busca por esses literais nessa pasta; o resultado esperado
+   é vazio.
+
 **Justificativa:** sem isso, número de questões variável não tem como saber quais
-matérias compõem a nota. Custo: ~1–1,5h.
+matérias compõem a nota. E deixar as demais regras de nota dentro de
+`gerar_excel.py` repetiria o problema do `if`: uma prova nova exigiria editar o
+relatório, não só o config. Custo: ~1,5–2h (era ~1–1,5h; o item 5 soma ~0,5h).
 
 ---
 
@@ -852,7 +882,10 @@ quem herdar o projeto, e dois imprimem ruído na tela do operador. Decisões de
 
 ---
 
-## 16. Apagar o arquivo de lixo da raiz do repositório
+## 16. Apagar o arquivo de lixo da raiz do repositório  ✅ CONCLUÍDO (verificado no código em 26/09/2026)
+
+`criptsconferir_publicacao.py` não está mais no repositório; `scripts/` e `docs/`
+estão no `main`.
 
 **Problema:** `criptsconferir_publicacao.py`, 17 KB na raiz, está publicado no
 `main`. O conteúdo não é código: é o texto de ajuda do comando `less`, capturado
@@ -870,7 +903,11 @@ repositório que é cartão de visitas, é o primeiro arquivo estranho que algu�
 
 ---
 
-## 17. Treino não pode sobrescrever os pesos de produção
+## 17. Treino não pode sobrescrever os pesos de produção  ✅ CONCLUÍDO (verificado no código em 26/09/2026)
+
+`treinar.py` salva em `CNN_BOLHAS_CANDIDATO_PATH` (`pesos/cnn_bolhas_candidato.pth`),
+nunca em `cnn_bolhas.pth`. Nome fixo em vez do nome datado sugerido abaixo;
+promover a produção continua sendo cópia manual.
 
 **Problema:** `treinar.py:85` salva direto em `pesos/cnn_bolhas.pth`. Rodar o
 treino para testar qualquer coisa substitui o modelo que está em produção, sem
@@ -1107,11 +1144,11 @@ concluídos são as originais, não o tempo gasto.
 |---|---|---|
 | 0. Reorganização estrutural | — | ✅ Feita. Consumiu ~4h, incluindo a verificação ponta a ponta |
 | 1. Repositório GitHub, licença e acesso | 1,5–2,5h | ✅ Concluído — falta só o segundo owner |
-| 2. Modo local (bloco único: 2.1, 2.2, 2.3) | 1,5–2h | ⏸️ Adiado por inteiro |
+| 2. Modo local (bloco único: 2.1, 2.2, 2.3) | 1,5–2h | ⏸️ Adiado — 2.1 ✅ concluído; faltam 2.2 e 2.3 |
 | 3. Anulação de questão | 0,25h | ✅ Concluído |
 | 4. Auditoria de falhas silenciosas | 1–1,5h | ✅ Concluído |
 | 5. Checkpoint de correção manual | 1–1,5h | ✅ Concluído |
-| 6/11/14. Prova de nº de questões variável (nota + matérias) | 2,1–3,1h | Itens 6, 11 e 14 aglutinados em 20/09/2026; ordem interna: nota → nº de questões + matérias |
+| 6/11/14. Prova de nº de questões variável (nota + matérias) | 2,6–3,6h | Itens 6, 11 e 14 aglutinados em 20/09/2026; ordem interna: nota → nº de questões + matérias. Escopo ampliado em 29/09/2026: todas as regras de matéria e nota no config |
 | 7. Robustez do modelo (+ regra relativa) | 6–9h (+2–3h se precisar de augmentation) | 🔶 Parcialmente concluído (20/09/2026) — dataset, dropout/weight decay e Teste B feitos; falta decidir augmentation e a regra de margem (7.1) |
 | 8. Correção automática de rotação | 3–5h | Único item que exige depurar casos-limite de visão computacional |
 | 9. README, documentação e teste de fumaça | 2–3h | 🔚 Último. Boa parte do conteúdo já está redigida neste plano |
@@ -1119,8 +1156,8 @@ concluídos são as originais, não o tempo gasto.
 | 12. Alerta de inscrição duplicada | 1,5–2h | ✅ Concluído (26/09/2026) |
 | 13. Fundir os dois módulos de inferência | 1,5–2h | ✅ Concluído (26/09/2026) — passo 2 descartado |
 | 15. Limpeza de resíduos | 0,5h | Nenhum muda comportamento |
-| 16. Apagar o lixo da raiz | 0,1h | Mais a conferência de `scripts/` e `docs/` no `main` |
-| 17. Treino não sobrescreve produção | 0,1h | Antes de começar o item 7 |
+| 16. Apagar o lixo da raiz | 0,1h | ✅ Concluído (verificado em 26/09/2026) |
+| 17. Treino não sobrescreve produção | 0,1h | ✅ Concluído (verificado em 26/09/2026) |
 | 18. Limpar a resposta uma vez só | 0,25h | |
 | 19. Import do config com efeito colateral | 0,5h | ⏳ Por último entre os de código |
 | 20. Separar código do modelo (M) do operador | 0,5h | ✅ Concluído (23/09/2026) |
