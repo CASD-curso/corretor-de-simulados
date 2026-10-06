@@ -7,6 +7,10 @@ e nota no `CONFIG_SIMULADOS` — escala da nota, questão anulada e percentual d
 grupos, além da lista de matérias e da fórmula que já estavam no escopo — e as
 referências de linha a `gerar_excel.py` foram atualizadas.*
 
+*Revisão de 06/10/2026. Item 7 encerrado: os limiares atuais ficam em produção,
+a regra de margem (0,05 ou 0,055) vira adicional opcional, e o risco de falso
+positivo em questão em branco fica registrado.*
+
 ## Princípios que guiam este plano
 
 Três critérios decidem qualquer dúvida de escopo daqui para frente.
@@ -33,7 +37,7 @@ não que ela seja rápida. Otimizar tempo de máquina vem por último.
 
 ## Ordem de implementação
 
-`0 ✅ → 1 ✅ → 2 ⏸️ → 3 ✅ → 4 ✅ → 5 ✅ → 7 → 13 ✅ → 12 ✅ → 6/11/14 → 8 → 19 → 9 → EXTRA`
+`0 ✅ → 1 ✅ → 2 ⏸️ → 3 ✅ → 4 ✅ → 5 ✅ → 7 ✅ → 13 ✅ → 12 ✅ → 6/11/14 → 8 → 19 → 9 → EXTRA`
 
 Os itens **10, 15, 16, 17, 18, 20, 21, 22 e 23** são independentes e custam
 minutos cada um — encaixam em qualquer ponto da fila, inclusive como aquecimento
@@ -43,9 +47,8 @@ O item **2** virou o bloco único do modo local e está adiado (2.1 já concluí
 **19** fica por último entre os de código, e o **9** (README) fecha tudo, porque
 documenta o estado final.
 
-Próximo: **item 7**. A robustez do modelo contra marcação fraca foi considerada
-mais central que suportar número de questões variável (decisão de 17/09/2026;
-sessão dedicada usará o modelo Opus).
+Próximo: **item 6/11/14**, a partir da fórmula de nota. O item 7 foi encerrado
+em 06/10/2026 com os limiares atuais mantidos (ver a decisão no item).
 
 Se a sessão produziu evidência que contradiz o plano — medição, teste, leitura de
 código — apontar que o item precisa ser reescrito, e em quê. Não editar o plano
@@ -398,7 +401,7 @@ relatório, não só o config. Custo: ~1,5–2h (era ~1–1,5h; o item 5 soma ~0
 
 ---
 
-## 7. Robustez do modelo contra marcação fraca  🔶 PARCIALMENTE CONCLUÍDO (20/09/2026)
+## 7. Robustez do modelo contra marcação fraca  ✅ CONCLUÍDO (06/10/2026 — regra de margem fica como adicional opcional)
 
 **Progresso desta sessão (20/09/2026):** os passos 1 a 4 da solução abaixo foram
 executados. Dataset novo rotulado conforme a seção 7.0 (224 recortes marcados,
@@ -406,7 +409,7 @@ executados. Dataset novo rotulado conforme a seção 7.0 (224 recortes marcados,
 treino e preservado à parte em `dataset/lote1_620/`). `CNNBin` recebeu
 `nn.Dropout(0.3)` antes da camada de decisão, e `treinar.py` passou a usar
 `weight_decay=1e-4` no otimizador Adam — os dois itens do passo 2. Modelo
-treinado do zero (15 épocas), sem augmentation, salvando em arquivo candidato
+treinado do zero (15 épocas), salvando em arquivo candidato
 (item 17), não em produção.
 
 **Teste B executado e resultado interpretado.** A avaliação contra o corredor
@@ -432,15 +435,28 @@ desempenho real dos alunos na prova, não falha do pipeline.
 **Modelo novo promovido para produção** (`pesos/cnn_bolhas.pth`) após essa
 validação; `pesos/cnn_bolhas_old.pth` mantido como backup, agora versionado.
 
-**Pendente dentro deste item:** passo 5 (decidir se precisa de augmentation —
-não avaliado ainda, já que o resultado do Teste B não isola erro de leitura,
-que já foi descartado, do desempenho real, que segue sem comparação com uma
-aplicação anterior da mesma prova) e passo 7 / seção 7.1 (regra de decisão por
-margem, ainda não implementada).
+**Decisão de 06/10/2026 — limiares atuais mantidos.** A regra de decisão em
+produção continua a absoluta (`LIMIAR_MAXIMO = 0.95`, `LIMIAR_DUPLA = 0.60`, em
+`decidir()`). O modelo retreinado separa as classes com folga — margem mínima de
+0,352 entre as duas bolhas mais prováveis, em 200 questões —, e nesse cenário a
+regra absoluta e a de margem dão o mesmo resultado nas questões medidas.
+
+**Adicional opcional:** trocar pela regra de margem da seção 7.1, com margem
+**0,05** (calibrada) ou **0,055** (com 10% de folga). Recalibrar com
+`calibrar_margem_teste.py` se o modelo for retreinado de novo.
+
+**Risco conhecido aceito — falso positivo em questão em branco.** Uma questão sem
+marcação real, com todas as bolhas altas e a menor logo abaixo de 0,95 (ex.:
+`0,94 · 0,95 · 0,99 · 0,99 · 0,99`), sai como alternativa marcada em vez de em
+branco. Esse resultado não gera item na aba Correção, então a revisão manual não
+o pega. A amostra de 200 questões do teste não tinha nenhuma questão em branco,
+logo esse cenário não foi medido; a mesma amostra mostra que a faixa
+intermediária existe neste modelo (3 marcações fracas reais com probabilidade
+de vazia entre 0,52 e 0,65, todas lidas corretamente).
 
 **Problema original:** o dataset de treino vinha de uma única sessão de scan, sem
-marcação fraca ou parcial rotulada, e a rede não tinha dropout, weight decay nem
-augmentation. A validação batia 100% já na época 1–2 — saturação, não
+marcação fraca ou parcial rotulada, e a rede não tinha dropout nem weight
+decay. A validação batia 100% já na época 1–2 — saturação, não
 generalização.
 
 **Evidência medida (15/09/2026):** rodando o modelo atual sobre os recortes
@@ -459,21 +475,17 @@ que o dataset atual não representa.
    contextos de aplicação, amostragem por questão inteira, sem curadoria manual
    de dificuldade.
 2. Adicionar dropout e/ou weight decay, contra a saturação instantânea.
-3. Treinar **do zero**, com pesos aleatórios, **sem augmentation** nesta primeira
-   rodada. Partir do checkpoint antigo contaminaria o teste do passo 4 com o
-   viés do lote velho.
+3. Treinar **do zero**, com pesos aleatórios. Partir do checkpoint antigo
+   contaminaria o teste do passo 4 com o viés do lote velho.
 4. **Split por contexto e por corredor, não por imagem.** Treino e validação
    usam as folhas de dia a dia e de vestibular sorteadas para essa finalidade
    (seção 7.0); teste usa folhas de dia a dia não sorteadas (Teste A) e um
    corredor inteiro de vestibular retido (Teste B), nenhum dos dois visto em
    treino.
-5. **Augmentation fica condicional ao passo 4.** Se os testes A e B vierem bons,
-   inclusive nos ambíguos, não é necessário. Testar em etapas evita não saber,
-   no fim, qual mudança foi responsável pelo resultado.
-6. **Recalibrar os limiares depois do passo 4.** Com dropout e marcação fraca no
+5. **Recalibrar os limiares depois do passo 4.** Com dropout e marcação fraca no
    treino, a distribuição de saída tende a ficar menos extrema; os valores atuais
    podem não servir mais.
-7. **Trocar a regra de decisão por uma regra relativa** — decidido em 18/09/2026,
+6. **Trocar a regra de decisão por uma regra relativa** — decidido em 18/09/2026,
    e só depois do retreino. Detalhe abaixo.
 
 ### 7.0 — Desenho do dataset novo (decisão de 19/09/2026)
@@ -567,7 +579,7 @@ como teste. Passam a existir dois testes com propósitos diferentes:
   É ferramenta de confirmação humana via planilha, mesma natureza do que já
   existe ali — não mistura com o código de treino da rede.
 
-### 7.1 — Regra de decisão relativa (passo 7)
+### 7.1 — Regra de decisão relativa (passo 6) — adicional opcional
 
 **O que existe hoje.** Para cada questão, cinco probabilidades (de estar **vazia**
 — ver a nota de inversão no fim deste documento). A regra ordena, pega as duas
@@ -595,7 +607,7 @@ acompanha qualquer distribuição que a rede produzir.
 o mesmo resultado em praticamente todo caso — 0,0001 contra 0,9995, qualquer regra
 acerta. A margem só começa a pagar quando a rede do passo 3 produzir valores
 intermediários. Calibrar a constante antes seria ajustá-la contra uma distribuição
-prestes a mudar. Este passo também substitui o passo 6: em vez de recalibrar dois
+prestes a mudar. Este passo também substitui o passo 5: em vez de recalibrar dois
 números, troca-se a forma da regra e calibra-se uma constante só.
 
 **Sobre lotes de scan:** um lote é o conjunto de folhas escaneadas na mesma
@@ -654,12 +666,13 @@ fraca/ambígua que o dataset de treino do passo 7.0 foi desenhado para capturar.
 primeira medição real sobre o modelo retreinado**, não como a margem de
 produção final — quanto confiar neste número é decisão do usuário.
 
-**Margem provisória decidida (22/09/2026):** 0,055 — 10% de folga sobre a
+**Margem candidata (22/09/2026; não aplicada — ver a decisão de 06/10/2026 no
+topo do item):** 0,055 — 10% de folga sobre a
 margem estatisticamente suficiente medida (0,05), decisão do usuário. Como
 nenhuma das 200 questões desta amostra tem margem real abaixo de 0,35, essa
 folga de 10% não é sustentada por nenhum caso observado aqui — é reserva
 deliberada contra um caso futuro perto do limiar, que esta amostra não tem
-como conter. Constante ainda não aplicada em código de produção.
+como conter. Constante não aplicada em código de produção.
 **Recalibrar se o modelo for retreinado de novo**, rodando outra vez
 `calibrar_margem_teste.py` com os pesos novos.
 
@@ -1149,7 +1162,7 @@ concluídos são as originais, não o tempo gasto.
 | 4. Auditoria de falhas silenciosas | 1–1,5h | ✅ Concluído |
 | 5. Checkpoint de correção manual | 1–1,5h | ✅ Concluído |
 | 6/11/14. Prova de nº de questões variável (nota + matérias) | 2,6–3,6h | Itens 6, 11 e 14 aglutinados em 20/09/2026; ordem interna: nota → nº de questões + matérias. Escopo ampliado em 29/09/2026: todas as regras de matéria e nota no config |
-| 7. Robustez do modelo (+ regra relativa) | 6–9h (+2–3h se precisar de augmentation) | 🔶 Parcialmente concluído (20/09/2026) — dataset, dropout/weight decay e Teste B feitos; falta decidir augmentation e a regra de margem (7.1) |
+| 7. Robustez do modelo (+ regra relativa) | 6–9h | ✅ Concluído (06/10/2026) — limiares atuais mantidos; regra de margem (0,05 ou 0,055) como adicional opcional |
 | 8. Correção automática de rotação | 3–5h | Único item que exige depurar casos-limite de visão computacional |
 | 9. README, documentação e teste de fumaça | 2–3h | 🔚 Último. Boa parte do conteúdo já está redigida neste plano |
 | 10. Ponto bisserial sem a própria questão | 0,1h | ✅ Concluído (26/09/2026) |
